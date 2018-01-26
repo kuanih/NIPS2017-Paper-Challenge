@@ -41,7 +41,7 @@ class ZCA(object):
         elif isinstance(x, torch.autograd.Variable):
             s = len(x.size())
             if s == 1:
-                out = torch.dot(x - self.mean, Variable(self.ZCA_mat), requires_grad=False).view(s)
+                out = torch.dot(x - self.mean, Variable(self.ZCA_mat, requires_grad=False)).view(s)
             else:
                 out = torch.mm(x.view(x.numel()) - torch.from_numpy(self.mean).unsqueeze(0),
                                Variable(self.ZCA_mat, requires_grad=False)).view(s)
