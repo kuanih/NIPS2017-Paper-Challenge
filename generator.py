@@ -1,25 +1,8 @@
 import torch
 import torch.nn as nn
-import torchvision
-import torchvision.transforms as transforms
 from torch.nn.utils import weight_norm as wn    # import weight_norm
 
 from layers import conv_concat, mlp_concat
-
-
-def read_data():
-
-    transform = transforms.Compose(
-        [transforms.ToTensor(),
-         transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
-
-    trainset = torchvision.datasets.CIFAR10(root='./data', train=True,
-                                            download=True, transform=transform)
-
-    trainloader = torch.utils.data.DataLoader(trainset, batch_size=4,
-                                              shuffle=True, num_workers=2)
-
-    return trainloader
 
 
 class Generator(nn.Module):
