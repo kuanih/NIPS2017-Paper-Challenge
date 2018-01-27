@@ -5,7 +5,7 @@ import time
 
 
 
-def train_discriminator(x_labelled, y_labelled, p_u_d, y_real, z_real, p_u_i, sample_y, lr):
+def train_discriminator(x_labelled, y_labelled, p_u_d, y_real, z_real, p_u_i, sample_y, optimizer, lr):
 
 
 
@@ -14,8 +14,7 @@ def train_discriminator(x_labelled, y_labelled, p_u_d, y_real, z_real, p_u_i, sa
 
     dis_out_p = ll.get_output(dis_layers[-1],
                               {dis_in_x: T.concatenate([sym_x_l, sym_x_u_d, gen_out_x_m], axis=0)[:batch_size],
-                               dis_in_y: T.concatenate([sym_y, cla_out_y_d_hard, sym_y_m], axis=0)[:batch_size]},
-                              deterministic=False)
+                               dis_in_y: T.concatenate([sym_y, cla_out_y_d_hard, sym_y_m], axis=0)[:batch_size]})
     dis_out_p_g = ll.get_output(dis_layers[-1], {dis_in_x: gen_out_x, dis_in_y: sym_y_g}, deterministic=False)
 
     disxz_out_p = ll.get_output(disxz_layers[-1], {disxz_in_x: sym_x_u_i, disxz_in_z: inf_z}, deterministic=False)
@@ -27,10 +26,11 @@ def train_discriminator(x_labelled, y_labelled, p_u_d, y_real, z_real, p_u_i, sa
 
 
 
-def train_gan(x_labelled, y_labelled, p_u_d, p_u_i,
+def train_gan(discriminator1, discriminator2, generator, inferator, whitener,
+              x_labelled, y_labelled, p_u_d, p_u_i,
               num_classes, batch_size, num_batches_u,
               batch_c, batch_l, batch_g,
-              n_z, lr, cuda=False):
+              n_z, optimizer, lr, cuda=False):
 
 
     for i in range(num_batches_u):
@@ -70,13 +70,4 @@ def train_gan(x_labelled, y_labelled, p_u_d, p_u_i,
                 x_labelled = x_labelled[p_l]
                 y_labelled = y_labelled[p_l]
 
-        for i in xrange(len(dl)):
-            dl[i] /= num_batches_u
-        for i in xrange(len(gl)):
-            gl[i] /= num_batches_u
-        for i in xrange(len(cl)):
-            cl[i] /= num_batches_u
 
-        if (epoch >= anneal_lr_epoch) and (epoch % anneal_lr_every_epoch == 0):
-            lr = lr*anneal_lr_factor
-            cla_lr *= anneal_lr_factor_cla
