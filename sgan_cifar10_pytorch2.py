@@ -10,22 +10,49 @@ import utils
 from layers import conv_concat, mlp_concat, init_weights
 from sklearn.metrics import accuracy_score
 import os
-import zca
+import logging
 from torch.nn.utils import weight_norm as wn
 
 
-outfolder="./cifar10_results"
-logfile=os.path.join(outfolder, 'logfile.log')
+### GLOBAL PARAMS ###
+# --------------------------------------------------------------
+BATCH_SIZE = 200
+BATCH_SIZE_EVAL = 200
+NUM_CLASSES = 10
+NUM_LABELLED = 4000
+SSL_SEED = 1
+NP_SEED = 1234
+
+# data dependent
+IN_CHANNELS = 3
+
+# evaluation
+VIS_EPOCH = 1
+EVAL_EPOCH = 1
+
+# C
+SCALED_UNSUP_WEIGHT_MAX = 100.0
+# G
+N_Z = 100
+
+# optimization
+B1 = 0.5  # moment1 in Adam
+LR = 3e-4
+LR_CLA = 3e-3
+NUM_EPOCHS = 1000
+NUM_EPOCHS_PRE = 20
+ANNEAL_EPOCH = 200
+ANNEAL_EVERY_EPOCH = 1
+ANNEAL_FACTOR = 0.995
+ANNEAL_FACTOR_CLA = 0.99
+
+path_out = "./results"
+
+
+
 '''
 data
 '''
-
-batch_size = 200
-batch_size_eval = 200
-num_classes = 10
-num_labelled = 4000
-ssl_data_seed = 1
-
 train_x, train_y = utils.load('./cifar10/', 'train')
 eval_x, eval_y = utils.load('./cifar10/', 'test')
 
@@ -33,21 +60,19 @@ train_y = np.int32(train_y)
 eval_y = np.int32(eval_y)
 x_unlabelled = train_x.copy()
 
-rng_data = np.random.RandomState(ssl_data_seed)
+rng_data = np.random.RandomState(SSL_SEED)
 inds = rng_data.permutation(train_x.shape[0])
 train_x = train_x[inds]
 train_y = train_y[inds]
 x_labelled = []
 y_labelled = []
 
-for j in range(num_classes):
-    x_labelled.append(train_x[train_y == j][:int(num_labelled / num_classes)])
-    y_labelled.append(train_y[train_y == j][:int(num_labelled / num_classes)])
+for j in range(NUM_CLASSES):
+    x_labelled.append(train_x[train_y == j][:int(NUM_LABELLED / NUM_CLASSES)])
+    y_labelled.append(train_y[train_y == j][:int(NUM_LABELLED / NUM_CLASSES)])
 
 x_labelled = np.concatenate(x_labelled, axis=0)
-
 y_labelled = np.concatenate(y_labelled, axis=0)
-
 del train_x
 
 if True:
@@ -59,39 +84,11 @@ if True:
     #                                  colorImg=colorImg, scale=generation_scale,
     #                                 save_path=os.path.join(outfolder, 'x_l_'+str(ssl_data_seed)+'_sgan.png'))
 
-num_batches_l = x_labelled.shape[0] / batch_size
-num_batches_u = x_unlabelled.shape[0] / batch_size
-num_batches_e = eval_x.shape[0] / batch_size_eval
+num_batches_l = x_labelled.shape[0] / BATCH_SIZE
+num_batches_u = x_unlabelled.shape[0] / BATCH_SIZE
+num_batches_e = eval_x.shape[0] / BATCH_SIZE_EVAL
+rng = np.random.RandomState(NP_SEED)
 
-'''
-parameters
-'''
-seed=1234
-rng=np.random.RandomState(seed)
-
-# data dependent
-in_channels = 3
-
-# evaluation
-vis_epoch=1
-eval_epoch=1
-
-# C
-scaled_unsup_weight_max = 100.0
-# G
-n_z=100
-# optimization
-b1=.5 # mom1 in Adam
-batch_size=200
-batch_size_eval=200
-lr=3e-4
-cla_lr=3e-3
-num_epochs=1000
-pre_num_epoch=20
-anneal_lr_epoch=200
-anneal_lr_every_epoch=1
-anneal_lr_factor_cla=.99
-anneal_lr_factor=.995
 
 def rampup(epoch):
     if epoch < 80:
@@ -107,6 +104,7 @@ def rampdown(epoch):
         return math.exp(-(ep * ep) / 50)
     else:
         return 1.0
+
 
 # generator y2x: p_g(x, y) = p(y) p_g(x | y) where x = G(z, y), z follows p_g(z)
 class Generator(nn.Module):
@@ -162,7 +160,7 @@ class Generator(nn.Module):
         x7 = wn(x6)
 
         return x7
-generator = Generator()
+
 
 # discriminator xy2p: test a pair of input comes from p(x, y) instead of p_c or p_g
 class DConvNet1(nn.Module):
@@ -267,6 +265,7 @@ class DConvNet1(nn.Module):
 
         return out
 
+
 # classifier module
 class Classifier_Net(nn.Module):
     def __init__(self):
@@ -318,7 +317,6 @@ class Classifier_Net(nn.Module):
         x = self.dense(x)
         return x
 
-classifier = Classifier_Net()
 
 class Gaussian_NoiseLayer(nn.Module):
     def __init__(self, shape, std=0.15):
@@ -331,6 +329,7 @@ class Gaussian_NoiseLayer(nn.Module):
             return x
         else:
             return x + self.noise.data.normal_(0, std=self.std)
+
 
 class MeanOnlyBatchNorm(nn.Module):
     def __init__(self, num_features, momentum=0.999):
@@ -351,6 +350,7 @@ class MeanOnlyBatchNorm(nn.Module):
             return x.add_(-mu)
         else:
             return x.add_(-Variable(self.running_mean))
+
 
 # inference module
 class Inference_Net(nn.Module):
@@ -379,7 +379,6 @@ class Inference_Net(nn.Module):
 
         return x
 
-inferentor = Inference_Net()
 
 # discriminator xz
 class DConvNet2(nn.Module):
@@ -463,73 +462,44 @@ class DConvNet2(nn.Module):
         out = self.sgmd(self.lin_f1(f_out))
 
         return out
-'''
-objectives
-'''
-# zca
-
-# init
-
-# outputs
-
-# costs
-cross_entropy = nn.CrossEntropyLoss()
-mse = nn.MSELoss()
-bce = nn.BCELoss()
-
-dis_cost_p = bce(dis_out_p, torch.ones(dis_out_p.shape)) # D distincts p
-dis_cost_p_g = bce(dis_out_p_g, torch.zeros(dis_out_p_g.shape)) # D distincts p_g
-gen_cost_p_g_1 = bce(dis_out_p_g, torch.ones(dis_out_p_g.shape)) # G fools D
-
-disxz_cost_p = bce(disxz_out_p, torch.ones(disxz_out_p.shape))
-disxz_cost_p_g = bce(disxz_out_p_g, torch.zeros(disxz_out_p_g.shape))
-inf_cost_p_i = bce(disxz_out_p, torch.zeros(disxz_out_p.shape))
-gen_cost_p_g_2 = bce(disxz_out_p_g, torch.ones(disxz_out_p_g.shape))
 
 
-# cost of labeled data is the difference between the classifed outputs and the targets
-#cla_cost_l = cross_entropy(cla_out_y_l, y) # size_average in pytorch is by default
-# cost of unlabeled data
-#cla_cost_u = unsup_weight * mse(cla_out_y, cla_out_y_rep)
-#cla_cost_g = cross_entropy(cla_out_y_m, y_m) * w_g
+#########################################################################################################
+
+### INIT ###
+
+# GENRATOR
+
+# INFERENCE
+
+# CLASSIFIER
+
+# DISCRIMINATOR
+
+# LOSS FUNCTIONS
+losses = {
+    'bce': nn.BCELoss(),
+    'mse': nn.MSELoss(),
+    'ce': nn.CrossEntropyLoss()
+}
+
+# OPTIMIZERS
+b1_c = rampdown_value * 0.9 + (1.0 - rampdown_value) * 0.5
+optimizers = {
+    'dis': optim.Adam(discriminator1.parameters() + discriminator2.parameters(), betas=(B1, 0.999), lr=LR),
+    'gen': optim.Adam(generator.parameters(), betas=(B1, 0.999), lr=LR),
+    'cla': optim.Adam(classifier.parameters(), betas=(b1_c, 0.999), lr=LR_CLA),  # robust adam??
+    'cla_pre': optim.Adam(pre_classifier.parameters(), lr=LR_CLA, betas=(b1_c, 0.999)),
+    'inf': optim.Adam(inference.parameters(), betas=(B1, 0.999), lr=LR)
+}
 
 
-#rz = mse(inf_z_g, z_rand)
-#ry = cross_entropy(cla_out_y_g, y_g)
+#########################################################################################################
 
-#pretrain_cost = cla_cost_l + cla_cost_u
+### PRETRAIN CLASSIFIER ###
 
-#la_cost = cla_cost_l + cla_cost_u + cla_cost_g
-
-#dis_cost = dis_cost_p + dis_cost_p_g
-#disxz_cost = disxz_cost_p + disxz_cost_p_g
-#inf_cost = inf_cost_p_i + rz
-#gen_cost = gen_cost_p_g_1 + gen_cost_p_g_2 + rz + ry
-
-#dis_cost_list=[dis_cost + disxz_cost, dis_cost, dis_cost_p, dis_cost_p_g, disxz_cost, disxz_cost_p, disxz_cost_p_g]
-#gen_cost_list=[gen_cost, gen_cost_p_g_1, gen_cost_p_g_2, rz, ry]
-#inf_cost_list=[inf_cost, inf_cost_p_i, rz]
-
-#cla_cost_list=[cla_cost, cla_cost_l, cla_cost_u, cla_cost_g]
-
-#inf_cost_list=[inf_cost, inf_cost_p_i, rz]
-
-# updates of D
-#dis_optimizer = optim.Adam(discriminator.parameters()+ discriminator_xz.parameters(), betas= (b1, 0.999), lr = lr) # just adding parameters togehter?
-# updates of G
-#gen_optimizer = optim.Adam(generator.parameters(), betas= (b1, 0.999), lr = lr)
-# updates of C
-# b1_c = rampdown_value * 0.9 + (1.0 - rampdown_value) * 0.5
-#cla_optimizer = optim.Adam(classifier.parameters(), betas=(b1_c, 0.999),lr = cla_lr) # they implement robust adam
-#pretrain_cla_optimizer = optim.Adam(pre_classifier.parameters(), lr = cla_lr, betas=(b1_c, 0.999))
-# updates of I
-#inf_optimizer = optim.Adam(inference.parameters(), betas= (b1, 0.999), lr = lr)
-
-'''
-Pretrain C
-'''
 print('Start pretraining')
-for epoch in range(1, 1+pre_num_epoch):
+for epoch in range(1, 1+NUM_EPOCHS_PRE):
     # randomly permute data and labels
     p_l = rng.permutation(x_labelled.shape[0])
     x_labelled = x_labelled[p_l]
@@ -593,11 +563,11 @@ for epoch in range(1, 1+pre_num_epoch):
     print(str(epoch) + ':Pretrain error: ' + str(1- accurracy))
 
 
-'''
-Training
-'''
+
+### GAN TRAINING ###
+
 print("Start training")
-for epoch in range(1, 1+num_epochs):
+for epoch in range(1, 1+NUM_EPOCHS):
     start = time.time()
 
     # randomly permute data and labels
