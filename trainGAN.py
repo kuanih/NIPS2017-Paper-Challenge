@@ -113,7 +113,7 @@ def pretrianing(x_labelled, y_labelled, eval_x, eval_y, x_unlabelled, rng, pre_n
     return classifier
 
 
-def train_discriminator(discriminator1, discriminator2, generator, inferator, classificator, whitener,
+def train_discriminator(discriminator1, discriminator2, generator, inferentor, classificator, whitener,
                         x_labelled, x_unlabelled, y_labelled,
                         slice_x_dis, y_real, z_real, slice_x_inf, sample_y, z_rand,
                         batch_size, optimizer, loss, cuda):
@@ -123,7 +123,7 @@ def train_discriminator(discriminator1, discriminator2, generator, inferator, cl
         discriminator1(DConvNet1): Discriminator instance xy
         discriminator2(DConvNet2): Discriminator instance xz
         generator(Generator): Generator instance
-        inferator(Inference_Net): Inference Net instance
+        inferentor(Inference_Net): Inference Net instance
         classificator(Classifier_Net): Classifier Net instance
         whitener(ZCA): ZCA instance
         x_labelled: batch of labelled input data
@@ -179,7 +179,7 @@ def train_discriminator(discriminator1, discriminator2, generator, inferator, cl
     gen_out_x_m = generator(y_real, z_real)
 
     # compute inference
-    inf_z = inferator(unlabel_inf)
+    inf_z = inferentor(unlabel_inf)
 
     # classify
     cla_out = classificator(unlabel_dis_zca)
@@ -227,7 +227,7 @@ def train_discriminator(discriminator1, discriminator2, generator, inferator, cl
 
 
 
-def train_inferentor(x_unlabelled, sample_y, generator, z_rand, discriminator2, inferator,
+def train_inferentor(x_unlabelled, sample_y, generator, z_rand, discriminator2, inferentor,
                      mse, bce, slice_x_u_i, optimizer, cuda):
     x_u_i = x_unlabelled[slice_x_u_i]
     x_u_i = Variable(torch.from_numpy(x_u_i))
@@ -237,14 +237,14 @@ def train_inferentor(x_unlabelled, sample_y, generator, z_rand, discriminator2, 
 
     y_g = sample_y
     gen_out_x = generator(z_rand, y_g)
-    inf_z = inferator(x_u_i)
-    inf_z_g = inferator(gen_out_x)
+    inf_z = inferentor(x_u_i)
+    inf_z_g = inferentor(gen_out_x)
     disxz_out_p = discriminator2(z=inf_z, x=x_u_i)
     rz = mse(gen_out_x, inf_z_g)
 
     inf_cost_p_i = bce(disxz_out_p, torch.zeros(disxz_out_p.shape))
     inf_cost = inf_cost_p_i + rz
-    #inf_optimizer = optim.Adam(inferator.parameters(), betas=(b1, 0.999), lr=lr)
+    #inf_optimizer = optim.Adam(inferentor.parameters(), betas=(b1, 0.999), lr=lr)
 
 
     optimizer.zero_grad()
@@ -253,7 +253,7 @@ def train_inferentor(x_unlabelled, sample_y, generator, z_rand, discriminator2, 
     return inf_cost.cpu().numpy().mean()
 
 def train_generator(whitener, optimizer, BCE_loss, MSE_loss, cross_entropy_loss,
-                    discriminator1, discriminator2, inferator, generator, classifier, sample_y, z_rand):
+                    discriminator1, discriminator2, inferentor, generator, classifier, sample_y, z_rand):
     '''
     Args:
         whitener(ZCA):      ZCA instance
@@ -263,7 +263,7 @@ def train_generator(whitener, optimizer, BCE_loss, MSE_loss, cross_entropy_loss,
         cross_entropy_loss: cross entropy loss
         discriminator1(DConvNet1): Discriminator instance xy
         discriminator2(DConvNet2): Discriminator instance xz
-        inferator:          Inference net
+        inferentor:          Inference net
         generator:          Generator net
         classifier:         Classificaiton net
         sample_y:           sampled labels
@@ -275,7 +275,7 @@ def train_generator(whitener, optimizer, BCE_loss, MSE_loss, cross_entropy_loss,
     '''
     # compute loss
     gen_out_x = generator(z_rand, sample_y)
-    inf_z_g = inferator(gen_out_x)
+    inf_z_g = inferentor(gen_out_x)
     gen_out_x_zca = whitener.apply(gen_out_x)
     cla_out_y_g = classifier(gen_out_x_zca)
     rz = MSE_loss(inf_z_g, z_rand)
@@ -394,7 +394,7 @@ def train_classifer(x_labelled, y_labelled, eval_x, eval_y, x_unlabelled, num_ba
     with open(logfile, 'a') as f:
         f.write(('ErrorEval=%.5f\n\n' % (1 - accurracy,)))
 
-def train_gan(discriminator1, discriminator2, generator, inferator, classifier, whitener,
+def train_gan(discriminator1, discriminator2, generator, inferentor, classifier, whitener,
               x_labelled, x_unlabelled, y_labelled, p_u_d, p_u_i,
               num_classes, batch_size, num_batches_u,
               batch_c, batch_l, batch_g,
@@ -406,7 +406,7 @@ def train_gan(discriminator1, discriminator2, generator, inferator, classifier, 
         discriminator1(DConvNet1): Discriminator instance xy
         discriminator2(DConvNet2): Discriminator instance xz
         generator(Generator): Generator instance
-        inferator(Inference_Net): Inference Net instance
+        inferentor(Inference_Net): Inference Net instance
         classificator(Classifier_Net): Classifier Net instance
         whitener(ZCA): ZCA instance
         x_labelled: batch of labelled input data
@@ -435,7 +435,7 @@ def train_gan(discriminator1, discriminator2, generator, inferator, classifier, 
     for i in range(num_batches_u):
             i_l = i % (x_labelled.shape[0] // batch_l)
 
-            from_u_i = i*batch_size  # unlabelled inferator slice
+            from_u_i = i*batch_size  # unlabelled inferentor slice
             to_u_i = (i+1)*batch_size
             from_u_d = i*batch_c    # unlabelled discriminator slice
             to_u_d = (i+1) * batch_c
@@ -455,7 +455,7 @@ def train_gan(discriminator1, discriminator2, generator, inferator, classifier, 
             dis_losses = train_discriminator(discriminator1=discriminator1,
                                              discriminator2=discriminator2,
                                              generator=generator,
-                                             inferator=inferator,
+                                             inferentor=inferentor,
                                              classificator=classifier,
                                              whitener=whitener,
                                              x_labelled=x_labelled[from_l:to_l],  # sym_x_l
@@ -477,7 +477,7 @@ def train_gan(discriminator1, discriminator2, generator, inferator, classifier, 
                                           generator=generator,
                                           z_rand=z_rand,
                                           discriminator2=discriminator2,
-                                          inferator=inferator,
+                                          inferentor=inferentor,
                                           mse=losses['mse'],
                                           bce=losses['bce'],
                                           slice_x_u_i=p_u_i[from_u_i:to_u_i],
@@ -491,7 +491,7 @@ def train_gan(discriminator1, discriminator2, generator, inferator, classifier, 
                                          cross_entropy_loss=losses['ce'],
                                          discriminator1=discriminator1,
                                          discriminator2=discriminator2,
-                                         inferator=inferator,
+                                         inferentor=inferentor,
                                          generator=generator,
                                          classifier=classifier,
                                          sample_y=sample_y,
