@@ -1,114 +1,57 @@
-import torch.nn as nn
-import torch.nn.functional as F
+'''
+Training routines for SGAN
+'''
+
 import torch.optim as optim
-from torch.autograd import Variable
-import torch
-import numpy as np
-import time
-import math
-import utils
-from layers import conv_concat, mlp_concat, init_weights
 from sklearn.metrics import accuracy_score
-import os
-import zca
-from torch.nn.utils import weight_norm as wn
-
 import torch
 from torch.autograd import Variable
 import numpy as np
-'''
-Pretraining C
-'''
-
-def pretrianing(x_labelled, y_labelled, eval_x, eval_y, x_unlabelled, rng, pre_num_epoch, num_batches_u, num_batches_l,
-                num_batches_e, batch_size, classifier, losses,  batch_size_eval, cuda):
-
-    '''
-
-    Args:
-        x_labelled:
-        y_labelled:
-        eval_x:
-        eval_y:
-        x_unlabelled:
-        rng:
-        pre_num_epoch:
-        num_batches_u:
-        num_batches_l:
-        num_batches_e:
-        batch_size:
-        classifier:
-        losses:
-        batch_size_eval:
-        cuda:
-
-    Returns:
-
-    '''
-    '''
-       Parameter Translation: Theano original --> PyTorch
-       input:
-            p_u: permutation_unlabelled
-       '''
-
-    print('Start pretraining')
-    for epoch in range(1, 1 + pre_num_epoch):
-        # randomly permute data and labels
-        permutation_labelled = rng.permutation(x_labelled.shape[0])
-        x_labelled = x_labelled[permutation_labelled]
-        y_labelled = y_labelled[permutation_labelled]
-        permutation_unlabelled = rng.permutation(x_unlabelled.shape[0]).astype('int32')
-
-        x_labelled = Variable(torch.from_numpy(x_labelled))
-        y_labelled = Variable(torch.from_numpy(y_labelled))
-
-        eval_x = Variable(torch.from_numpy(eval_x))
-        eval_y = Variable(torch.from_numpy(eval_y))
-
-        whitener = zca(x=x_unlabelled)
-        x_unlabelled = Variable(torch.from_numpy(x_unlabelled))
-
-        if cuda:
-            x_labelled, y_labelled, eval_x, eval_y, x_unlabelled = \
-                x_labelled.cuda(), y_labelled.cuda(), eval_x.cuda(), eval_y.cuda(), x_unlabelled.cuda()
-
-        for i in range(num_batches_u):
-            i_c = i % num_batches_l
-            x_l = x_labelled[i_c * batch_size:(i_c + 1) * batch_size]
-            x_l_zca = whitener.apply(x_l)
-            y = y_labelled[i_c * batch_size:(i_c + 1) * batch_size]
-            cla_out_y_l = classifier(x_l_zca)
-            cla_cost_l = losses['ce'](cla_out_y_l, y)
-
-            x_u_rep = x_unlabelled[permutation_unlabelled[i * batch_size:(i + 1) * batch_size]]
-            x_u_rep_zca = whitener.apply(x_u_rep)
-            cla_out_y_rep = classifier(x_u_rep_zca)
-
-            x_u = x_unlabelled[permutation_unlabelled[i * batch_size:(i + 1) * batch_size]]
-            x_u_zca = whitener.apply(x_u)
-            cla_out_y = classifier(x_u_zca)
-            cla_cost_u = 100 * losses['mse'](cla_out_y, cla_out_y_rep)
-
-            pretrain_cost = cla_cost_l + cla_cost_u
-
-            cla_optimizer = optim.Adam(classifier.parameters(), betas=(0.9, 0.999),
-                                       lr=3e-3)  # they implement robust adam
-
-            pretrain_cost.backward()
-            cla_optimizer.step()
 
 
-        accurracy = []
-        for i in range(num_batches_e):
-            x_eval = eval_x[i * batch_size_eval:(i + 1) * batch_size_eval]
-            y_eval = eval_y[i * batch_size_eval:(i + 1) * batch_size_eval]
-            x_eval_zca = whitener.apply(x_eval)
+def pretrain_classifier(x_labelled, x_unlabelled, y_labelled, eval_x, eval_y, num_batches_l,
+                        batch_size, num_batches_u, classifier, whitener, losses, rng, cuda):
 
-            cla_out_y_eval = classifier(x_eval_zca)
-            accurracy_batch = accuracy_score(y_eval, cla_out_y_eval)
-            accurracy.append(accurracy_batch)
-        accurracy = np.mean(accurracy)
-        print(str(epoch) + ':Pretrain error: ' + str(1 - accurracy))
+    # randomly permute data and labels
+    permutation_labelled = rng.permutation(x_labelled.shape[0])
+    x_labelled = x_labelled[permutation_labelled]
+    y_labelled = y_labelled[permutation_labelled]
+    permutation_unlabelled = rng.permutation(x_unlabelled.shape[0]).astype('int32')
+
+    x_labelled = Variable(torch.from_numpy(x_labelled))
+    y_labelled = Variable(torch.from_numpy(y_labelled))
+
+    eval_x = Variable(torch.from_numpy(eval_x))
+    eval_y = Variable(torch.from_numpy(eval_y))
+    x_unlabelled = Variable(torch.from_numpy(x_unlabelled))
+
+    if cuda:
+        x_labelled, y_labelled, eval_x, eval_y, x_unlabelled = \
+            x_labelled.cuda(), y_labelled.cuda(), eval_x.cuda(), eval_y.cuda(), x_unlabelled.cuda()
+
+    for i in range(num_batches_u):
+        i_c = i % num_batches_l
+        x_l = x_labelled[i_c * batch_size:(i_c + 1) * batch_size]
+        x_l_zca = whitener.apply(x_l)
+        y = y_labelled[i_c * batch_size:(i_c + 1) * batch_size]
+        cla_out_y_l = classifier(x_l_zca)
+        cla_cost_l = losses['ce'](cla_out_y_l, y)
+
+        x_u_rep = x_unlabelled[permutation_unlabelled[i * batch_size:(i + 1) * batch_size]]
+        x_u_rep_zca = whitener.apply(x_u_rep)
+        cla_out_y_rep = classifier(x_u_rep_zca)
+
+        x_u = x_unlabelled[permutation_unlabelled[i * batch_size:(i + 1) * batch_size]]
+        x_u_zca = whitener.apply(x_u)
+        cla_out_y = classifier(x_u_zca)
+        cla_cost_u = 100 * losses['mse'](cla_out_y, cla_out_y_rep)
+
+        pretrain_cost = cla_cost_l + cla_cost_u
+
+        cla_optimizer = optim.Adam(classifier.parameters(), betas=(0.9, 0.999), lr=3e-3)  # they implement robust adam
+
+        pretrain_cost.backward()
+        cla_optimizer.step()
 
     return classifier
 
@@ -123,8 +66,8 @@ def train_discriminator(discriminator1, discriminator2, generator, inferentor, c
         discriminator1(DConvNet1): Discriminator instance xy
         discriminator2(DConvNet2): Discriminator instance xz
         generator(Generator): Generator instance
-        inferentor(Inference_Net): Inference Net instance
-        classificator(Classifier_Net): Classifier Net instance
+        inferentor(InferenceNet): Inference Net instance
+        classificator(ClassifierNet): Classifier Net instance
         whitener(ZCA): ZCA instance
         x_labelled: batch of labelled input data
         x_unlabelled: batch of unlabelled input data
@@ -213,9 +156,9 @@ def train_discriminator(discriminator1, discriminator2, generator, inferentor, c
     dis2_cost_p = loss(dis2_out_p, p_label_d2)
     dis2_cost_pg = loss(dis2_out_pg, pg_label_d2)
 
-    dis1_cost = dis1_cost_p + dis1_cost_pg
-    dis2_cost = dis2_cost_p + dis2_cost_pg
-
+    # sum individual losses
+    dis1_cost = dis1_cost_p + dis1_cost_pg  # for report
+    dis2_cost = dis2_cost_p + dis2_cost_pg  # for report
     total_cost = dis1_cost + dis2_cost
 
     # optimization routines and weight updates
@@ -223,12 +166,12 @@ def train_discriminator(discriminator1, discriminator2, generator, inferentor, c
     total_cost.backward()
     optimizer.step()
 
-    return [dis1_cost.cpu().numpy().mean(), dis2_cost.cpu().numpy().mean()], dis2_out_p
-
+    return total_cost.cpu().numpy().mean()
 
 
 def train_inferentor(x_unlabelled, sample_y, generator, z_rand, discriminator2, inferentor,
                      mse, bce, slice_x_u_i, optimizer, cuda):
+
     x_u_i = x_unlabelled[slice_x_u_i]
     x_u_i = Variable(torch.from_numpy(x_u_i))
 
@@ -244,13 +187,12 @@ def train_inferentor(x_unlabelled, sample_y, generator, z_rand, discriminator2, 
 
     inf_cost_p_i = bce(disxz_out_p, torch.zeros(disxz_out_p.shape))
     inf_cost = inf_cost_p_i + rz
-    #inf_optimizer = optim.Adam(inferentor.parameters(), betas=(b1, 0.999), lr=lr)
-
 
     optimizer.zero_grad()
     inf_cost.backward()
     optimizer.step()
     return inf_cost.cpu().numpy().mean()
+
 
 def train_generator(whitener, optimizer, BCE_loss, MSE_loss, cross_entropy_loss,
                     discriminator1, discriminator2, inferentor, generator, classifier, sample_y, z_rand):
@@ -283,7 +225,6 @@ def train_generator(whitener, optimizer, BCE_loss, MSE_loss, cross_entropy_loss,
     dis_out_p_g = discriminator1(x=gen_out_x, y=sample_y)
     disxz_out_p_g = discriminator2(z=z_rand, x=gen_out_x)
 
-
     gen_cost_p_g_1 = BCE_loss(dis_out_p_g, torch.ones(dis_out_p_g.shape))
     gen_cost_p_g_2 = BCE_loss(disxz_out_p_g, torch.ones(disxz_out_p_g.shape))
 
@@ -297,19 +238,16 @@ def train_generator(whitener, optimizer, BCE_loss, MSE_loss, cross_entropy_loss,
     return generator_cost.cpu().numpy().mean()
 
 
-def train_classifer(x_labelled, y_labelled, eval_x, eval_y, x_unlabelled, num_batches_u, num_batches_e, eval_epoch,
-                    size_l, size_u, size_g, n_z, whitener, classifier, x_u_rep_zca, x_u_zca,
-                    unsup_weight, losses, generator, w_g, cla_lr, rng, running_cla_cost,  batch_size_eval, logfile, b1_c):
+def train_classifier(x_labelled, y_labelled, x_unlabelled, num_batches_u, eval_epoch,
+                     size_l, size_u, size_g, n_z, whitener, classifier, p_u,
+                     unsup_weight, losses, generator, w_g, cla_lr, rng, b1_c, cuda):
     '''
 
     Args:
         x_labelled: batch of labelled input data
         y_labelled: batch of labels
-        eval_x: batch of labelled validation input data
-        eval_y: batch of validation labels
         x_unlabelled: unlabelled data
         num_batches_u:
-        num_batches_e:
         eval_epoch:
         size_l:
         size_u:
@@ -317,24 +255,23 @@ def train_classifer(x_labelled, y_labelled, eval_x, eval_y, x_unlabelled, num_ba
         n_z:
         whitener:
         classifier: Classifier Net instance
-        x_u_rep_zca:
-        x_u_zca:
+        p_u:
         unsup_weight:
         losses(dict): dictionary containing respective loss instances (BCE, MSE, CE)
         generator:
         w_g:
         cla_lr:
         rng:
-        running_cla_cost:
-        batch_size_eval:
-        logfile:
         b1_c:
 
     Returns:
 
     '''
 
-    for i in range(num_batches_u * eval_epoch):
+    running_cla_cost = 0.0
+    epochs = num_batches_u * eval_epoch
+
+    for i in range(epochs):
 
         i_l = i % (x_labelled.shape[0] // size_l)
         i_u = i % (x_unlabelled.shape[0] // size_u)
@@ -342,12 +279,29 @@ def train_classifer(x_labelled, y_labelled, eval_x, eval_y, x_unlabelled, num_ba
         y_real = np.int32(np.random.randint(10, size=size_g))
         z_real = np.random.uniform(size=(size_g, n_z)).astype(np.float32)
 
-
-
         x_l = x_labelled[i_l * size_l:(i_l + 1) * size_l]
         y = y_labelled[i_l * size_l:(i_l + 1) * size_l]
-
         x_l_zca = whitener.apply(x_l)
+
+        slice_x_u_c = p_u[i_u*size_u:(i_u+1)*size_u]
+        x_u_rep = x_unlabelled[slice_x_u_c]  # copy x_u_zca? double assigned variable??
+        x_u = x_unlabelled[slice_x_u_c]
+        x_u_rep_zca = whitener.apply(x_u_rep)
+        x_u_zca = whitener.apply(x_u)
+
+        # convert to torch tensor variable
+        y_real = Variable(torch.from_numpy(y_real))
+        z_real = Variable(torch.from_numpy(z_real))
+        y = Variable(torch.from_numpy(y))
+        x_l_zca = Variable(torch.from_numpy(x_l_zca))
+        x_u_rep_zca = Variable(torch.from_numpy(x_u_rep_zca))
+        x_u_zca = Variable(torch.from_numpy(x_u_zca))
+
+        if cuda:
+            y_real, z_real, y, x_l_zca, \
+            x_u_rep_zca, x_u_zca = Variable(y_real), Variable(z_real), \
+                                   Variable(y), Variable(x_l_zca), Variable(x_u_rep_zca), Variable(x_u_zca)
+
         cla_out_y_l = classifier(x_l_zca)
         cla_cost_l = losses['ce'](cla_out_y_l, y)  # size_average in pytorch is by default
 
@@ -364,8 +318,7 @@ def train_classifer(x_labelled, y_labelled, eval_x, eval_y, x_unlabelled, num_ba
 
         cla_cost = cla_cost_l + cla_cost_u + cla_cost_g
 
-        cla_optimizer = optim.Adam(classifier.parameters(), betas=(b1_c, 0.999),
-                                   lr=cla_lr)
+        cla_optimizer = optim.Adam(classifier.parameters(), betas=(b1_c, 0.999), lr=cla_lr)
         # zero the parameter gradients
         cla_optimizer.zero_grad()
         cla_cost.backward()
@@ -378,21 +331,10 @@ def train_classifer(x_labelled, y_labelled, eval_x, eval_y, x_unlabelled, num_ba
         if i_u == (num_batches_u - 1):
             p_u = rng.permutation(x_unlabelled.shape[0]).astype('int32')
 
+        running_cla_cost += cla_cost.cpu().numpy().mean()
 
-        running_cla_cost += cla_cost.data[0]
+    return running_cla_cost/epochs
 
-    accurracy = []
-    for i in range(num_batches_e):
-        x_eval = eval_x[i * batch_size_eval:(i + 1) * batch_size_eval]
-        y_eval = eval_y[i * batch_size_eval:(i + 1) * batch_size_eval]
-        x_eval_zca = whitener.apply(x_eval)
-        cla_out_y_eval = classifier(x_eval_zca)
-        accurracy_batch = accuracy_score(y_eval, cla_out_y_eval)
-        accurracy.append(accurracy_batch)
-    accurracy = np.mean(accurracy)
-    print('ErrorEval=%.5f\n' % (1 - accurracy,))
-    with open(logfile, 'a') as f:
-        f.write(('ErrorEval=%.5f\n\n' % (1 - accurracy,)))
 
 def train_gan(discriminator1, discriminator2, generator, inferentor, classifier, whitener,
               x_labelled, x_unlabelled, y_labelled, p_u_d, p_u_i,
@@ -406,14 +348,14 @@ def train_gan(discriminator1, discriminator2, generator, inferentor, classifier,
         discriminator1(DConvNet1): Discriminator instance xy
         discriminator2(DConvNet2): Discriminator instance xz
         generator(Generator): Generator instance
-        inferentor(Inference_Net): Inference Net instance
-        classificator(Classifier_Net): Classifier Net instance
+        inferentor(InferenceNet): Inference Net instance
+        classifier(ClassifierNet): Classifier Net instance
         whitener(ZCA): ZCA instance
         x_labelled: batch of labelled input data
         x_unlabelled: batch of unlabelled input data
         y_labelled: batch of corresponding labels
-        p_u_d:
-        p_u_i:
+        p_u_d: data slice object (idx)
+        p_u_i: data slice object (idx)
         num_classes(int): number of target classes
         batch_size(int): size of mini-batch
         num_batches_u:
@@ -430,8 +372,6 @@ def train_gan(discriminator1, discriminator2, generator, inferentor, classifier,
 
     '''
 
-
-
     for i in range(num_batches_u):
             i_l = i % (x_labelled.shape[0] // batch_l)
 
@@ -443,7 +383,7 @@ def train_gan(discriminator1, discriminator2, generator, inferentor, classifier,
             to_l = (i_l+1)*batch_l
 
             # create samples and labels
-            sample_y = torch.from_numpy(np.int32(np.repeat(np.arange(num_classes), batch_size/num_classes)))
+            sample_y = torch.from_numpy(np.int32(np.repeat(np.arange(num_classes), int(batch_size/num_classes))))
             y_real = torch.from_numpy(np.int32(np.random.randint(10, size=batch_g)))
             z_real = torch.from_numpy(np.random.uniform(size=(batch_g, n_z)).astype(np.float32))
             z_rand = torch.rand(sizes=(batch_size, n_z))
@@ -498,7 +438,11 @@ def train_gan(discriminator1, discriminator2, generator, inferentor, classifier,
                                          z_rand=z_rand)
 
 
-
+            gan_loss = {
+                'dis': dis_losses,
+                'inf': inf_losses,
+                'gen': gen_losses
+            }
 
             if i_l == ((x_labelled.shape[0] // batch_l) - 1):
                 p_l = rng.permutation(x_labelled.shape[0])
