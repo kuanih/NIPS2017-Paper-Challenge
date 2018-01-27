@@ -136,7 +136,7 @@ losses = {
 
 ### PRETRAIN CLASSIFIER ###
 
-logger.info('Start pretraining')
+logger.info('Start pretraining...')
 for epoch in range(1, 1+NUM_EPOCHS_PRE):
     # randomly permute data and labels
     p_l = rng.permutation(x_labelled.shape[0])
@@ -205,11 +205,10 @@ for epoch in range(1, 1+NUM_EPOCHS_PRE):
 ### GAN TRAINING ###
 lr_cla = LR_CLA
 lr = LR
+start_full = time.time()
 
-logger.info("Start GAN training")
+logger.info("Start GAN training...")
 for epoch in range(1, 1+NUM_EPOCHS):
-
-    start_full = time.time()
 
     # OPTIMIZERS
     optimizers = {
@@ -217,6 +216,9 @@ for epoch in range(1, 1+NUM_EPOCHS):
         'gen': optim.Adam(generator.parameters(), betas=(B1, 0.999), lr=lr),
         'inf': optim.Adam(inference.parameters(), betas=(B1, 0.999), lr=lr)
     }
+
+
+    # >>
 
     # randomly permute data and labels
     p_l = rng.permutation(x_labelled.shape[0])
@@ -276,6 +278,8 @@ for epoch in range(1, 1+NUM_EPOCHS):
         logger.info('ErrorEval=%.5f\n' % (1 - accurracy,))
 
 
+    # >>
+
     start_gan = time.time()
 
     for i in range(num_batches_u):
@@ -293,12 +297,10 @@ for epoch in range(1, 1+NUM_EPOCHS):
         lr = lr * ANNEAL_FACTOR
         lr_cla *= ANNEAL_FACTOR_CLA
 
-
-
-    t = time.time() - start
-
-    line = "*Epoch=%d Time=%.2f LR=%.5f\n" % (epoch, t, lr) + "DisLosses: " + str(dl) + "\nGenLosses: " + \
-           str(gl) + "\nInfLosses: " + str(il) + "\nClaLosses: " + str(cl)
+    # report and log training info
+    t = time.time() - start_full
+    line = "*Epoch=%d Time=%.2f LR=%.5f\n" % (epoch, t, lr) + "DisLosses: " + str(gan_losses['dis']) + "\nGenLosses: " + \
+           str(gan_losses['gen']) + "\nInfLosses: " + str(gan_losses['inf']) + "\nClaLosses: " + str(gan_losses['cla'])
     logger.info(line)
 
 

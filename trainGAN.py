@@ -13,8 +13,8 @@ def train_discriminator(discriminator1, discriminator2, generator, inferator, cl
         discriminator1(DConvNet1): Discriminator instance xy
         discriminator2(DConvNet2): Discriminator instance xz
         generator(Generator): Generator instance
-        inferator(Inference_Net): Inference Net instance
-        classificator(Classifier_Net): Classifier Net instance
+        inferator(InferenceNet): Inference Net instance
+        classificator(ClassifierNet): Classifier Net instance
         whitener(ZCA): ZCA instance
         x_labelled: batch of labelled input data
         x_unlabelled: batch of unlabelled input data
@@ -165,8 +165,8 @@ def train_gan(discriminator1, discriminator2, generator, inferator, classificato
         discriminator1(DConvNet1): Discriminator instance xy
         discriminator2(DConvNet2): Discriminator instance xz
         generator(Generator): Generator instance
-        inferator(Inference_Net): Inference Net instance
-        classificator(Classifier_Net): Classifier Net instance
+        inferator(InferenceNet): Inference Net instance
+        classificator(ClassifierNet): Classifier Net instance
         whitener(ZCA): ZCA instance
         x_labelled: batch of labelled input data
         x_unlabelled: batch of unlabelled input data
