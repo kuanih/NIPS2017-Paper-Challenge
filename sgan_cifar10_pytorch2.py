@@ -10,6 +10,9 @@ import utils
 from layers import conv_concat, mlp_concat
 from sklearn.metrics import accuracy_score
 import os
+import zca
+
+
 outfolder="./cifar10_results"
 logfile=os.path.join(outfolder, 'logfile.log')
 '''
@@ -362,9 +365,12 @@ for epoch in range(1, 1+pre_num_epoch):
 
     x_labelled = Variable(x_labelled)
     y_labelled = Variable(y_labelled)
-    x_unlabelled = Variable(x_unlabelled)
+
     eval_x = Variable(eval_x)
     eval_y = Variable(eval_y)
+
+    whitener = zca(x = x_unlabelled)
+    x_unlalbelled = Variable(x_unlabelled)
 
     for i in range(num_batches_u):
         i_c = i % num_batches_l
@@ -382,6 +388,7 @@ for epoch in range(1, 1+pre_num_epoch):
         x_u_rep = x_unlabelled[p_u[i*batch_size:(i+1)*batch_size]] # sym_x_u_rep: shared_unlabel[slice_x_u_c]
         x_u_rep_zca = whitener.apply(x_u_rep)
         cla_out_y_rep = classifier(x_u_rep_zca)
+
         x_u = x_unlabelled[p_u[i*batch_size:(i+1)*batch_size]]
         x_u_zca = whitener.apply(x_u)
         cla_out_y = classifier(x_u_zca)
@@ -395,13 +402,16 @@ for epoch in range(1, 1+pre_num_epoch):
         pretrain_cost.backward()
         cla_optimizer.step()
 
+    # evaluate = theano.function(inputs=[sym_x_eval, sym_y], outputs=[accurracy_eval], givens=cla_avg_givens)
 
     accurracy=[]
     for i in range(num_batches_e):
         x_eval = eval_x[i*batch_size_eval:(i+1)*batch_size_eval]
         y_eval = eval_y[i*batch_size_eval:(i+1)*batch_size_eval]
-        y_predicted = classifier(x_eval)
-        accurracy_batch = accuracy_score(y_eval, y_predicted)
+        x_eval_zca = whitener.apply(x_eval)
+
+        cla_out_y_eval = classifier(x_eval_zca)
+        accurracy_batch = accuracy_score(y_eval, cla_out_y_eval)
 
 
         #accurracy_batch = evaluate(eval_x[i*batch_size_eval:(i+1)*batch_size_eval], eval_y[i*batch_size_eval:(i+1)*batch_size_eval])
@@ -429,6 +439,9 @@ for epoch in range(1, 1+num_epochs):
     y_labelled = Variable(y_labelled)
     eval_x = Variable(eval_x)
     eval_y = Variable(eval_y)
+
+    whitener = zca(x = x_unlabelled)
+
 
     if epoch < 500:
         if epoch % 50 == 1: # 4, 8, 12, 16
@@ -508,8 +521,9 @@ for epoch in range(1, 1+num_epochs):
         for i in range(num_batches_e):
             x_eval = eval_x[i * batch_size_eval:(i + 1) * batch_size_eval]
             y_eval = eval_y[i * batch_size_eval:(i + 1) * batch_size_eval]
-            y_predicted = classifier(x_eval)
-
+            x_eval_zca = whitener.apply(x_eval)
+            cla_out_y_eval = classifier(x_eval_zca)
+            accurracy_batch = accuracy_score(y_eval, cla_out_y_eval)
             #accurracy_batch = evaluate(eval_x[i * batch_size_eval:(i + 1) * batch_size_eval],
             #                           eval_y[i * batch_size_eval:(i + 1) * batch_size_eval])
             accurracy.append(accurracy_batch)
