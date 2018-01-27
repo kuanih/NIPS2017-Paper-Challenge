@@ -7,19 +7,17 @@ import numpy as np
 import time
 import math
 import utils
-from layers import conv_concat, mlp_concat
+from layers import conv_concat, mlp_concat, init_weights
 from sklearn.metrics import accuracy_score
 import os
 import zca
-
+from torch.nn.utils import weight_norm as wn
 
 outfolder="./cifar10_results"
 logfile=os.path.join(outfolder, 'logfile.log')
 '''
 data
 '''
-
-
 
 batch_size = 200
 batch_size_eval = 200
@@ -160,18 +158,113 @@ class Generator(nn.Module):
         x6 = self.Deconv2D_2(x6)                    # output shape (3, 32, 32) = 3072
         x6 = self.Tanh(x6)
 
-        x7 = nn.utils.weight_norm(x6)
+        x7 = wn(x6)
 
         return x7
 generator = Generator()
 
 # discriminator xy2p: test a pair of input comes from p(x, y) instead of p_c or p_g
-class Discriminator(nn.Module):
-    def _init__(self):
-        super(Discriminator, self).__init__()
+class DConvNet1(nn.Module):
+    '''
+    1st convolutional discriminative net (discriminator xy2p)
+    --> does a pair of input come from p(x, y) instead of p_c or p_g ?
+    '''
 
-    def forward(self, x):
-        return x
+    def __init__(self, channel_in, num_classes, p_dropout=0.2, weight_init=True):
+        super(DConvNet1, self).__init__()
+
+        self.logger = logging.getLogger(__name__)  # initialize logger
+
+        self.num_classes = num_classes
+
+        # general reusable layers:
+        # self.ConvConcat = ConvConcatLayer()
+        # self.MLPConcat = MLPConcatLayer()
+        self.LReLU = nn.LeakyReLU(negative_slope=0.2)  # leaky ReLU activation function
+        self.sgmd = nn.Sigmoid()  # sigmoid activation function
+        self.drop = nn.Dropout(p=p_dropout)  # dropout layer
+
+        # input -->
+        # drop
+        # ConvConcat
+
+        self.conv1 = wn(nn.Conv2d(in_channels=channel_in, out_channels=32,
+                                  kernel_size=(3, 3), stride=(1, 1), padding=1, bias=False))
+        # LReLU
+        # ConvConcat
+
+        self.conv2 = wn(nn.Conv2d(in_channels=32, out_channels=32,
+                                  kernel_size=(3, 3), stride=2, padding=1, bias=False))
+        # LReLU
+        # drop
+        # ConvConcat
+
+        self.conv3 = wn(nn.Conv2d(in_channels=32, out_channels=64,
+                                  kernel_size=(3, 3), stride=(1, 1), padding=1, bias=False))
+        # LReLU
+        # ConvConcat
+
+        self.conv4 = wn(nn.Conv2d(in_channels=64, out_channels=64,
+                                  kernel_size=(3, 3), stride=2, padding=1, bias=False))
+        # LReLU
+        # drop
+        # ConvConcat
+
+        self.conv5 = wn(nn.Conv2d(in_channels=64, out_channels=128,
+                                  kernel_size=(3, 3), stride=(1, 1), padding=0, bias=False))
+        # LReLU
+        # ConvConcat
+
+        self.conv6 = wn(nn.Conv2d(in_channels=128, out_channels=128,
+                                  kernel_size=(3, 3), stride=(1, 1), padding=0, bias=False))
+        # LReLU
+
+        self.globalPool = nn.AdaptiveAvgPool2d(output_size=[16, 16])
+
+        # MLPConcat
+
+        self.lin = nn.Linear(in_features=256,
+                             out_features=1)
+        # smg
+
+        if weight_init:
+            # initialize weights for all conv and lin layers
+            self.apply(init_weights(normal=[1.0, 0.05]))
+            # log network structure
+            self.logger.info(self)
+
+    def forward(self, x, y):
+        # x: (bs, channel_in, dim_input)
+        # y: (bs, 1)
+
+        x0 = self.drop(x)
+        x0 = self.conv_concat(x0, y, self.num_classes)
+
+        x1 = self.LReLU(self.conv1(x0))
+        x1 = self.conv_concat(x1, y, self.num_classes)
+
+        x2 = self.LReLU(self.conv2(x1))
+        x2 = self.drop(x2)
+        x2 = self.conv_concat(x2, y, self.num_classes)
+
+        x3 = self.LReLU(self.conv3(x2))
+        x3 = self.conv_concat(x3, y, self.num_classes)
+
+        x4 = self.LReLU(self.conv4(x3))
+        x4 = self.drop(x4)
+        x4 = self.conv_concat(x4, y, self.num_classes)
+
+        x5 = self.LReLU(self.conv5(x4))
+        x5 = self.conv_concat(x5, y, self.num_classes)
+
+        x6 = self.LReLU(self.conv6(x5))
+
+        x_pool = self.globalPool(x6)
+        x_out = self.mlp_concat(x_pool, y)
+
+        out = self.sgmd(self.lin(x_out))
+
+        return out
 
 # classifier module
 class Classifier_Net(nn.Module):
@@ -283,14 +376,90 @@ class Inference_Net(nn.Module):
         x = F.leaky_relu(self.inf32(self.inf31(x)))
         x = self.inf4(x)
 
-# discriminator xz
-class Discriminator_xz(nn.Module):
-    def __init__(self):
-        super(Discriminator_xz, self).__init__()
-
-    def forward(self, x):
         return x
 
+# discriminator xz
+class DConvNet2(nn.Module):
+    '''
+    2nd convolutional discriminative net (discriminator xz)
+    '''
+
+    def __init__(self, n_z, channel_in, num_classes, weight_init=True):
+        super(DConvNet2, self).__init__()
+
+        self.logger = logging.getLogger(__name__)  # initialize logger
+
+        self.num_classes = num_classes
+
+        # general reusable layers:
+        # self.ConvConcat = ConvConcatLayer()
+        # self.MLPConcat = MLPConcatLayer()
+        self.LReLU = nn.LeakyReLU(negative_slope=0.2)  # leaky ReLU activation function
+        self.sgmd = nn.Sigmoid()  # sigmoid activation function
+
+        # z input -->
+        self.lin_z0 = nn.Linear(in_features=n_z,
+                                out_features=512)
+        # LReLU
+
+        self.lin_z1 = nn.Linear(in_features=512,
+                                out_features=512)
+        # LReLU
+
+        # -------------------------------------
+
+        # x input -->
+        self.conv_x0 = nn.Conv2d(in_channels=channel_in, out_channels=128,
+                                 kernel_size=(5, 5), stride=2, padding=2, bias=False)
+        # LReLU
+
+        self.conv_x1 = nn.Conv2d(in_channels=128, out_channels=256,
+                                 kernel_size=(5, 5), stride=2, padding=2, bias=False)
+        # LReLU
+        self.bn1 = nn.BatchNorm2d(num_features=256)
+
+        self.conv_x2 = nn.Conv2d(in_channels=256, out_channels=512,
+                                 kernel_size=(5, 5), stride=2, padding=2, bias=False)
+        # LReLU
+        self.bn2 = nn.BatchNorm2d(num_features=512)
+
+        # -------------------------------------
+
+        # concat x & z -->
+        self.lin_f0 = nn.Linear(in_features=512,
+                                out_features=1024)
+        # LReLU
+
+        self.lin_f1 = nn.Linear(in_features=1024,
+                                out_features=1)
+        # smg
+
+        if weight_init:
+            # initialize weights for all conv and lin layers
+            self.apply(init_weights(normal=[1.0, 0.05]))
+            # log network structure
+            self.logger.info(self)
+
+    def forward(self, z, x):
+        # x: (bs, channel_in, dim_input)
+        # z: (bs, n_z)
+
+        z0 = self.LReLU(self.lin_z0(z))
+        z_out = self.LReLU(self.lin_z1(z0))
+
+        x0 = self.LReLU(self.conv_x0(x))
+        x1 = self.LReLU(self.conv_x1(x0))
+        x1 = self.bn1(x1)
+        x_out = self.LReLU(self.conv_x2(x1))
+        x_out = self.bn2(x_out)
+
+        dims = x_out.size()
+        fusion = torch.cat(x_out.view(dims[0], dims[1], -1).squeeze(-1), z_out)
+
+        f_out = self.LReLU(self.lin_f0(fusion))
+        out = self.sgmd(self.lin_f1(f_out))
+
+        return out
 '''
 objectives
 '''
