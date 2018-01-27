@@ -6,10 +6,37 @@ import numpy as np
 def train_discriminator(discriminator1, discriminator2, generator, inferator, classificator, whitener,
                         x_labelled, x_unlabelled, y_labelled,
                         slice_x_dis, y_real, z_real, slice_x_inf, sample_y, z_rand,
-                        batch_size, d1_optimizer, d2_optimizer, loss, cuda):
+                        batch_size, optimizer, loss, cuda):
+    '''
+
+    Args:
+        discriminator1(DConvNet1): Discriminator instance xy
+        discriminator2(DConvNet2): Discriminator instance xz
+        generator(Generator): Generator instance
+        inferator(Inference_Net): Inference Net instance
+        classificator(Classifier_Net): Classifier Net instance
+        whitener(ZCA): ZCA instance
+        x_labelled: batch of labelled input data
+        x_unlabelled: batch of unlabelled input data
+        y_labelled: batch of corresponding labels
+        slice_x_dis: indexes to select unlabelled data for discriminator
+        y_real: class labels
+        z_real: generator_x_m noise input
+        slice_x_inf: indexes to select unlabelled data for inference net
+        sample_y: sampled labels
+        z_rand: generator_x noise input
+        batch_size(int): size of mini-batch
+        d1_optimizer(torch.optim): optimizer instance for discriminator1
+        d2_optimizer(torch.optim): optimizer instance for discriminator2
+        loss(torch.nn.Loss): loss instance for discriminators (BCE)
+        cuda(bool): cuda flag (GPU)
+
+    Returns: list(discriminator1 loss, discriminator2 loss)
 
     '''
-    Parameter Translation
+
+    '''
+    Parameter Translation: Theano original --> PyTorch
     input:
         x_labelled[from_l:to_l],  # sym_x_l
         y_labelled[from_l:to_l],  # sym_y
@@ -79,53 +106,14 @@ def train_discriminator(discriminator1, discriminator2, generator, inferator, cl
     dis1_cost = dis1_cost_p + dis1_cost_pg
     dis2_cost = dis2_cost_p + dis2_cost_pg
 
-    # optimization routines and weight updates
-    d1_optimizer.zero_grad()
-    dis1_cost.backward()
-    d1_optimizer.step()
-
-    d2_optimizer.zero_grad()
-    dis2_cost.backward()
-    d2_optimizer.step()
-
-    return [dis1_cost.cpu().numpy().mean(), dis2_cost.cpu().numpy().mean()]
-
-
-def train_generator(optimizer, BCE_loss, MSE_loss, cross_entropy_loss,
-                    loss_dis_generated, loss_dis_styled, loss_inference_z_g, n_z, 
-                    classifier_out_y, z_rand, sample_y):
-    '''
-    Args:
-        optimizer:          optimizer  for generator
-        BCE_loss:           binary cross entropy loss
-        MSE_loss:           mean squared error loss
-        cross_entropy_loss: cross entropy loss
-        loss_dis_generated: loss of discriminator 1
-        loss_dis_styled:    loss of discriminator 2
-        loss_inference_z_g: loss of inference
-        n_z:                number of z
-        classifier_out_y:   output of classifier
-        z_rand:             random z sample
-        sample_y:           sample of y
-
-    Returns:
-
-    '''
-    # compute loss
-    rz = MSE_loss(loss_inference_z_g, z_rand, n_z)
-    ry = cross_entropy_loss(classifier_out_y, sample_y)
-
-    gen_cost_p_g_1 = BCE_loss(loss_dis_generated, torch.ones(loss_dis_generated.shape))
-    gen_cost_p_g_2 = BCE_loss(loss_dis_styled, torch.ones(loss_dis_styled.shape))
-
-    generator_cost = gen_cost_p_g_1 + gen_cost_p_g_2 + rz + ry
+    total_cost = dis1_cost + dis2_cost
 
     # optimization routines and weight updates
     optimizer.zero_grad()
-    generator_cost.backward()
+    total_cost.backward()
     optimizer.step()
 
-    return generator_cost.cpu().numpy().mean()
+    return [dis1_cost.cpu().numpy().mean(), dis2_cost.cpu().numpy().mean()]
 
 
 def train_gan(discriminator1, discriminator2, generator, inferator, classificator, whitener,
@@ -133,6 +121,37 @@ def train_gan(discriminator1, discriminator2, generator, inferator, classificato
               num_classes, batch_size, num_batches_u,
               batch_c, batch_l, batch_g,
               n_z, optimizers, losses, lr, cuda=False):
+
+    '''
+
+    Args:
+        discriminator1(DConvNet1): Discriminator instance xy
+        discriminator2(DConvNet2): Discriminator instance xz
+        generator(Generator): Generator instance
+        inferator(Inference_Net): Inference Net instance
+        classificator(Classifier_Net): Classifier Net instance
+        whitener(ZCA): ZCA instance
+        x_labelled: batch of labelled input data
+        x_unlabelled: batch of unlabelled input data
+        y_labelled: batch of corresponding labels
+        p_u_d:
+        p_u_i:
+        num_classes(int): number of target classes
+        batch_size(int): size of mini-batch
+        num_batches_u:
+        batch_c:
+        batch_l:
+        batch_g:
+        n_z:
+        optimizers(dict): dictionary containing optimizer instances for all respective nets (dis, gen, inf)
+        losses(dict): dictionary containing respective loss instances (BCE, MSE, CE)
+        cuda(bool): cuda flag
+
+    Returns:
+
+    '''
+
+
 
     for i in range(num_batches_u):
             i_l = i % (x_labelled.shape[0] // batch_l)
@@ -170,39 +189,23 @@ def train_gan(discriminator1, discriminator2, generator, inferator, classificato
                                              sample_y=sample_y,  # sym_y_g
                                              z_rand=z_rand,
                                              batch_size=batch_size,
-                                             d1_optimizer=optimizers['dis1'],
-                                             d2_optimizer=optimizers['dis2'],
+                                             optimizer=optimizers['dis'],
                                              loss=losses['bce'],
                                              cuda=cuda)
 
-            # placeholder
-            inference_loss = 0
-            classificator_loss = 0
 
-            generator_loss = train_generator(optimizer=optimizers['generator'],
-                                             BCE_loss=losses['bce'],
-                                             MSE_loss=losses['mse'],
-                                             cross_entropy_loss=losses['ce'],
-                                             loss_dis_generated=dis_losses[0],
-                                             loss_dis_styled=dis_losses[1],
-                                             loss_inference_z_g=inference_loss,
-                                             n_z=n_z,
-                                             classifier_out_y=classificator_loss,
-                                             z_rand=z_rand,
-                                             sample_y=sample_y)
 
-            # for j in range(len(dl)):
-            #    dl[j] += dl_b[j]
+            il_b = train_batch_inf(p_u_i[from_u_i:to_u_i], sample_y, lr)
+            for j in xrange(len(il)):
+                il[j] += il_b[j]
 
-            # il_b = train_batch_inf(p_u_i[from_u_i:to_u_i], sample_y, lr)
-            # for j in range(len(il)):
-            #    il[j] += il_b[j]
+            gl_b = train_batch_gen(sample_y, lr)
+            for j in xrange(len(gl)):
+                gl[j] += gl_b[j]
 
-            # gl_b = train_batch_gen(sample_y, lr)
-            # for j in xrange(len(gl)):
-            #    gl[j] += gl_b[j]
+            if i_l == ((x_labelled.shape[0] // batch_l) - 1):
+                p_l = rng.permutation(x_labelled.shape[0])
+                x_labelled = x_labelled[p_l]
+                y_labelled = y_labelled[p_l]
 
-            # if i_l == ((x_labelled.shape[0] // batch_l) - 1):
-            #    p_l = rng.permutation(x_labelled.shape[0])
-            #    x_labelled = x_labelled[p_l]
-            #    y_labelled = y_labelled[p_l]
+
