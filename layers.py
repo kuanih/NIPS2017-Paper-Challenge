@@ -54,8 +54,6 @@ def init_weights(model, normal=None):
 
     '''
 
-    import warnings
-
     if normal:
         mu = normal[0]
         sigma = normal[1]
@@ -66,12 +64,14 @@ def init_weights(model, normal=None):
             model.bias.data.fill_(0)
         else:
             nn.init.xavier_normal(model.weight.data)
+        print('Weights initialized.')
     elif type(model) in [nn.ConvTranspose2d, nn.Conv2d]:  # convolutional layers
         if normal:
             model.weight.data.normal_(mu, sigma)
             model.bias.data.fill_(0)
         else:
             nn.init.xavier_normal(model.weight.data)
+        print('Weights initialized.')
     elif type(model) in [nn.BatchNorm2d]:   # init batch normalizations from normal dist
         if normal:
             model.weight.data.normal_(mu, sigma)
@@ -79,6 +79,8 @@ def init_weights(model, normal=None):
         else:
             model.weight.data.normal_(1.0, 0.02)
             model.bias.data.fill_(0)
+        print('Weights initialized.')
     else:
-        warnings.warn('Initialization failed. Unknown module type: \n' + str(type(model)), UserWarning)
-    print('Weights initialized.')
+        raise NotImplementedError('Initialization failed. Unknown module type: {}'.format(str(type(model))))
+
+
