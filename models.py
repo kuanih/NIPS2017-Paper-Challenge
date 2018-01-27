@@ -1,3 +1,8 @@
+'''
+NN Models for SGAN
+'''
+
+import logging
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -6,13 +11,14 @@ from torch.nn.utils import weight_norm as wn
 from layers import conv_concat, mlp_concat, init_weights, GaussianNoiseLayer, MeanOnlyBatchNorm
 
 
-
 ### MODEL STRUCTURES ###
 
 # generator y2x: p_g(x, y) = p(y) p_g(x | y) where x = G(z, y), z follows p_g(z)
 class Generator(nn.Module):
-    def __init__(self, input_size, num_classes, dense_neurons, num_output_features):
+    def __init__(self, input_size, num_classes, dense_neurons, num_output_features, weight_init=True):
         super(Generator, self).__init__()
+
+        self.logger = logging.getLogger(__name__)  # initialize logger
 
         self.num_classes = num_classes
 
@@ -32,6 +38,12 @@ class Generator(nn.Module):
         self.BatchNorm2D_0 = nn.BatchNorm2d(dense_neurons * 2)
         self.BatchNorm2D_1 = nn.BatchNorm2d(dense_neurons * 4)
         self.BatchNorm2D_2 = nn.BatchNorm2d(num_output_features)
+
+        if weight_init:
+            # initialize weights for all conv and lin layers
+            self.apply(init_weights(normal=[1.0, 0.05]))
+            # log network structure
+            self.logger.info(self)
 
     def forward(self, z, y):
         x = mlp_concat(z, y, self.num_classes)
@@ -64,8 +76,10 @@ class Generator(nn.Module):
 
 # classifier module
 class ClassifierNet(nn.Module):
-    def __init__(self, in_channels):
+    def __init__(self, in_channels, weight_init=True):
         super(ClassifierNet, self).__init__()
+
+        self.logger = logging.getLogger(__name__)  # initialize logger
 
         self.conv1a = nn.Conv2d(in_channels=in_channels, out_channels=128, kernel_size=3,
                                 stride=1, padding=1)
@@ -94,6 +108,12 @@ class ClassifierNet(nn.Module):
         self.conv_maxpool3 = nn.MaxPool2d(kernel_size=2)
         self.dense = nn.Linear(in_features=128, out_features=10)
 
+        if weight_init:
+            # initialize weights for all conv and lin layers
+            self.apply(init_weights(normal=[1.0, 0.05]))
+            # log network structure
+            self.logger.info(self)
+
     def forward(self, x):
         x = GaussianNoiseLayer(x.shape)
         x = self.convWN(self.conv_relu(self.conv1a(x)))
@@ -116,8 +136,11 @@ class ClassifierNet(nn.Module):
 
 # inference module
 class InferenceNet(nn.Module):
-    def __init__(self, in_channels, n_z):
+    def __init__(self, in_channels, n_z, weight_init=True):
         super(InferenceNet, self).__init__()
+
+        self.logger = logging.getLogger(__name__)  # initialize logger
+
         self.inf02 = nn.Conv2d(in_channels=in_channels, out_channels=64, kernel_size=4,
                                stride=2, padding=1)
         self.inf03 = nn.BatchNorm2d(64)
@@ -131,6 +154,12 @@ class InferenceNet(nn.Module):
                                stride=2, padding=1)
         self.inf32 = nn.BatchNorm2d(512)
         self.inf4 = nn.Linear(in_features=512, out_features=n_z)
+
+        if weight_init:
+            # initialize weights for all conv and lin layers
+            self.apply(init_weights(normal=[1.0, 0.05]))
+            # log network structure
+            self.logger.info(self)
 
     def forward(self, x):
         x = F.leaky_relu(self.inf03(self.inf02(x)))
@@ -151,6 +180,8 @@ class DConvNet1(nn.Module):
 
     def __init__(self, channel_in, num_classes, p_dropout=0.2, weight_init=True):
         super(DConvNet1, self).__init__()
+
+        self.logger = logging.getLogger(__name__)  # initialize logger
 
         self.num_classes = num_classes
 
@@ -206,7 +237,7 @@ class DConvNet1(nn.Module):
             # initialize weights for all conv and lin layers
             self.apply(init_weights(normal=[1.0, 0.05]))
             # log network structure
-            print(self)
+            self.logger.info(self)
 
     def forward(self, x, y):
         # x: (bs, channel_in, dim_input)
@@ -250,6 +281,8 @@ class DConvNet2(nn.Module):
 
     def __init__(self, n_z, channel_in, num_classes, weight_init=True):
         super(DConvNet2, self).__init__()
+
+        self.logger = logging.getLogger(__name__)  # initialize logger
 
         self.num_classes = num_classes
 
@@ -298,7 +331,7 @@ class DConvNet2(nn.Module):
             # initialize weights for all conv and lin layers
             self.apply(init_weights(normal=[1.0, 0.05]))
             # log network structure
-            print(self)
+            self.logger.info(self)
 
     def forward(self, z, x):
         # x: (bs, channel_in, dim_input)
