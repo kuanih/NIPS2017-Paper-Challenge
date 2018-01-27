@@ -6,7 +6,7 @@ import numpy as np
 def train_discriminator(discriminator1, discriminator2, generator, inferator, classificator, whitener,
                         x_labelled, x_unlabelled, y_labelled,
                         slice_x_dis, y_real, z_real, slice_x_inf, sample_y, z_rand,
-                        batch_size, d1_optimizer, d2_optimizer, loss, cuda):
+                        batch_size, optimizer, loss, cuda):
     '''
 
     Args:
@@ -106,14 +106,12 @@ def train_discriminator(discriminator1, discriminator2, generator, inferator, cl
     dis1_cost = dis1_cost_p + dis1_cost_pg
     dis2_cost = dis2_cost_p + dis2_cost_pg
 
-    # optimization routines and weight updates
-    d1_optimizer.zero_grad()
-    dis1_cost.backward()
-    d1_optimizer.step()
+    total_cost = dis1_cost + dis2_cost
 
-    d2_optimizer.zero_grad()
-    dis2_cost.backward()
-    d2_optimizer.step()
+    # optimization routines and weight updates
+    optimizer.zero_grad()
+    total_cost.backward()
+    optimizer.step()
 
     return [dis1_cost.cpu().numpy().mean(), dis2_cost.cpu().numpy().mean()]
 
@@ -138,17 +136,16 @@ def train_gan(discriminator1, discriminator2, generator, inferator, classificato
         y_labelled: batch of corresponding labels
         p_u_d:
         p_u_i:
-        num_classes:
+        num_classes(int): number of target classes
         batch_size(int): size of mini-batch
         num_batches_u:
         batch_c:
         batch_l:
         batch_g:
         n_z:
-        optimizers(dict): dictionary containing optimizer instances for all respective nets (dis1, dis2, gen, inf)
+        optimizers(dict): dictionary containing optimizer instances for all respective nets (dis, gen, inf)
         losses(dict): dictionary containing respective loss instances (BCE, MSE, CE)
-
-        cuda(bool):
+        cuda(bool): cuda flag
 
     Returns:
 
@@ -192,8 +189,7 @@ def train_gan(discriminator1, discriminator2, generator, inferator, classificato
                                              sample_y=sample_y,  # sym_y_g
                                              z_rand=z_rand,
                                              batch_size=batch_size,
-                                             d1_optimizer=optimizers['dis1'],
-                                             d2_optimizer=optimizers['dis2'],
+                                             optimizer=optimizers['dis'],
                                              loss=losses['bce'],
                                              cuda=cuda)
 
