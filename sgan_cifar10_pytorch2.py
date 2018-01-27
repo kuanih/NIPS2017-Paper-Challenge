@@ -494,36 +494,36 @@ gen_cost_p_g_2 = bce(disxz_out_p_g, torch.ones(disxz_out_p_g.shape))
 #cla_cost_g = cross_entropy(cla_out_y_m, y_m) * w_g
 
 
-rz = mse(inf_z_g, z_rand)
-ry = cross_entropy(cla_out_y_g, y_g)
+#rz = mse(inf_z_g, z_rand)
+#ry = cross_entropy(cla_out_y_g, y_g)
 
-pretrain_cost = cla_cost_l + cla_cost_u
+#pretrain_cost = cla_cost_l + cla_cost_u
 
 #la_cost = cla_cost_l + cla_cost_u + cla_cost_g
 
-dis_cost = dis_cost_p + dis_cost_p_g
-disxz_cost = disxz_cost_p + disxz_cost_p_g
-inf_cost = inf_cost_p_i + rz
-gen_cost = gen_cost_p_g_1 + gen_cost_p_g_2 + rz + ry
+#dis_cost = dis_cost_p + dis_cost_p_g
+#disxz_cost = disxz_cost_p + disxz_cost_p_g
+#inf_cost = inf_cost_p_i + rz
+#gen_cost = gen_cost_p_g_1 + gen_cost_p_g_2 + rz + ry
 
-dis_cost_list=[dis_cost + disxz_cost, dis_cost, dis_cost_p, dis_cost_p_g, disxz_cost, disxz_cost_p, disxz_cost_p_g]
-gen_cost_list=[gen_cost, gen_cost_p_g_1, gen_cost_p_g_2, rz, ry]
-inf_cost_list=[inf_cost, inf_cost_p_i, rz]
+#dis_cost_list=[dis_cost + disxz_cost, dis_cost, dis_cost_p, dis_cost_p_g, disxz_cost, disxz_cost_p, disxz_cost_p_g]
+#gen_cost_list=[gen_cost, gen_cost_p_g_1, gen_cost_p_g_2, rz, ry]
+#inf_cost_list=[inf_cost, inf_cost_p_i, rz]
 
 #cla_cost_list=[cla_cost, cla_cost_l, cla_cost_u, cla_cost_g]
 
-inf_cost_list=[inf_cost, inf_cost_p_i, rz]
+#inf_cost_list=[inf_cost, inf_cost_p_i, rz]
 
 # updates of D
-dis_optimizer = optim.Adam(discriminator.parameters()+ discriminator_xz.parameters(), betas= (b1, 0.999), lr = lr) # just adding parameters togehter?
+#dis_optimizer = optim.Adam(discriminator.parameters()+ discriminator_xz.parameters(), betas= (b1, 0.999), lr = lr) # just adding parameters togehter?
 # updates of G
-gen_optimizer = optim.Adam(generator.parameters(), betas= (b1, 0.999), lr = lr)
+#gen_optimizer = optim.Adam(generator.parameters(), betas= (b1, 0.999), lr = lr)
 # updates of C
 # b1_c = rampdown_value * 0.9 + (1.0 - rampdown_value) * 0.5
-cla_optimizer = optim.Adam(classifier.parameters(), betas=(b1_c, 0.999),lr = cla_lr) # they implement robust adam
-pretrain_cla_optimizer = optim.Adam(pre_classifier.parameters(), lr = cla_lr, betas=(b1_c, 0.999))
+#cla_optimizer = optim.Adam(classifier.parameters(), betas=(b1_c, 0.999),lr = cla_lr) # they implement robust adam
+#pretrain_cla_optimizer = optim.Adam(pre_classifier.parameters(), lr = cla_lr, betas=(b1_c, 0.999))
 # updates of I
-inf_optimizer = optim.Adam(inference.parameters(), betas= (b1, 0.999), lr = lr)
+#inf_optimizer = optim.Adam(inference.parameters(), betas= (b1, 0.999), lr = lr)
 
 '''
 Pretrain C
