@@ -522,8 +522,8 @@ for epoch in range(1, 1+num_epochs):
             x_eval = eval_x[i * batch_size_eval:(i + 1) * batch_size_eval]
             y_eval = eval_y[i * batch_size_eval:(i + 1) * batch_size_eval]
             x_eval_zca = whitener.apply(x_eval)
-            y_predicted = classifier(x_eval)
-
+            cla_out_y_eval = classifier(x_eval_zca)
+            accurracy_batch = accuracy_score(y_eval, cla_out_y_eval)
             #accurracy_batch = evaluate(eval_x[i * batch_size_eval:(i + 1) * batch_size_eval],
             #                           eval_y[i * batch_size_eval:(i + 1) * batch_size_eval])
             accurracy.append(accurracy_batch)
