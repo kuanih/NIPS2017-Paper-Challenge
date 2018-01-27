@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 from torch.autograd import Variable
+import math
 
 
 def conv_concat(x, y, num_cls):
@@ -84,3 +85,52 @@ def init_weights(model, normal=None):
         raise NotImplementedError('Initialization failed. Unknown module type: {}'.format(str(type(model))))
 
 
+class GaussianNoiseLayer(nn.Module):
+    def __init__(self, shape, std=0.15):
+        super(GaussianNoiseLayer).__init__()
+        self.noise = Variable(torch.zeros(shape))  # .cuda()
+        self.std = std
+
+    def forward(self, x, deterministic=False):
+        if deterministic or (self.std == 0):
+            return x
+        else:
+            return x + self.noise.data.normal_(0, std=self.std)
+
+
+class MeanOnlyBatchNorm(nn.Module):
+    def __init__(self, num_features, momentum=0.999):
+        super(MeanOnlyBatchNorm, self).__init__()
+        self.num_features = num_features
+        self.momentum = momentum
+        self.register_buffer('running_mean', torch.zeros(num_features))
+        # self.reset_parameters()
+
+    def forward(self, x):
+
+        # mu = Variable(torch.mean(input,dim=0, keepdim=True).data, requires_grad=False)
+        if self.training is True:
+            mu = x.mean(dim=0, keepdim=True)
+            mu = self.momentum * mu + (1 - self.momentum) * Variable(self.running_mean)
+
+            self.running_mean = mu.data
+            return x.add_(-mu)
+        else:
+            return x.add_(-Variable(self.running_mean))
+
+
+def rampup(epoch):
+    if epoch < 80:
+        p = max(0.0, float(epoch)) / float(80)
+        p = 1.0 - p
+        return math.exp(-p*p*5.0)
+    else:
+        return 1.0
+
+
+def rampdown(epoch):
+    if epoch >= (300 - 50):
+        ep = (epoch - (300 - 50)) * 0.5
+        return math.exp(-(ep * ep) / 50)
+    else:
+        return 1.0

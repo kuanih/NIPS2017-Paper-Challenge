@@ -5,13 +5,15 @@ from torch.autograd import Variable
 import torch
 import numpy as np
 import time
-import math
 import utils
-from layers import conv_concat, mlp_concat, init_weights
 from sklearn.metrics import accuracy_score
 import os
 import logging
 from torch.nn.utils import weight_norm as wn
+
+# own utils
+from layers import conv_concat, mlp_concat, init_weights, GaussianNoiseLayer, MeanOnlyBatchNorm, rampup, rampdown
+from zca import ZCA
 
 
 ### GLOBAL PARAMS ###
@@ -90,28 +92,13 @@ num_batches_e = eval_x.shape[0] / BATCH_SIZE_EVAL
 rng = np.random.RandomState(NP_SEED)
 
 
-def rampup(epoch):
-    if epoch < 80:
-        p = max(0.0, float(epoch)) / float(80)
-        p = 1.0 - p
-        return math.exp(-p*p*5.0)
-    else:
-        return 1.0
+#########################################################################################################
 
-def rampdown(epoch):
-    if epoch >= (300 - 50):
-        ep = (epoch - (300 - 50)) * 0.5
-        return math.exp(-(ep * ep) / 50)
-    else:
-        return 1.0
-
+### MODEL STRUCTURES ###
 
 # generator y2x: p_g(x, y) = p(y) p_g(x | y) where x = G(z, y), z follows p_g(z)
 class Generator(nn.Module):
-    def __init__(self, input_size=101, num_classes=10,
-                 dense_neurons=8192,
-                 num_output_features=3072):
-
+    def __init__(self, input_size, num_classes, dense_neurons, num_output_features):
         super(Generator, self).__init__()
 
         self.num_classes = num_classes
@@ -162,6 +149,85 @@ class Generator(nn.Module):
         return x7
 
 
+# classifier module
+class ClassifierNet(nn.Module):
+    def __init__(self, in_channels):
+        super(ClassifierNet, self).__init__()
+
+        self.conv1a = nn.Conv2d(in_channels=in_channels, out_channels=128, kernel_size=3,
+                                stride=1, padding=1)
+        self.convWN = MeanOnlyBatchNorm(128)
+        self.conv1b = nn.Conv2d(in_channels=128, out_channels=128, kernel_size=3,
+                                stride=1, padding=1)
+        self.conv_relu = nn.LeakyReLU(negative_slope=0.1)
+        self.conv1c = nn.Conv2d(in_channels=128, out_channels=128, kernel_size=3,
+                                stride=1, padding=1)
+        self.conv_maxpool1 = nn.MaxPool2d(kernel_size=2)
+        self.dropout1 = nn.Dropout2d(p=0.5)
+        self.conv2a = nn.Conv2d(in_channels=128, out_channels=256, kernel_size=3,
+                                stride=1, padding=1)
+        self.conv2b = nn.Conv2d(in_channels=256, out_channels=256, kernel_size=3,
+                                stride=1, padding=1)
+        self.conv2c = nn.Conv2d(in_channels=256, out_channels=256, kernel_size=3,
+                                stride=1, padding=1)
+        self.conv_maxpool2 = nn.MaxPool2d(kernel_size=2)
+        self.dropout2 = nn.Dropout2d(p=0.5)
+        self.conv3a = nn.Conv2d(in_channels=256, out_channels=512, kernel_size=3,
+                                stride=1, padding=0)
+        self.conv3b = nn.Conv2d(in_channels=512, out_channels=256, kernel_size=1,
+                                stride=1, padding=0)
+        self.conv3c = nn.Conv2d(in_channels=256, out_channels=128, kernel_size=1,
+                                stride=1, padding=0)
+        self.conv_maxpool3 = nn.MaxPool2d(kernel_size=2)
+        self.dense = nn.Linear(in_features=128, out_features=10)
+
+    def forward(self, x):
+        x = GaussianNoiseLayer(x.shape)
+        x = self.convWN(self.conv_relu(self.conv1a(x)))
+        x = self.convWN(self.conv_relu(self.conv1b(x)))
+        x = self.convWN(self.conv_relu(self.conv1c(x)))
+        x = self.conv_maxpool1(x)
+        x = self.dropout1(x)
+        x = self.convWN(self.conv_relu(self.conv2a(x)))
+        x = self.convWN(self.conv_relu(self.conv2b(x)))
+        x = self.convWN(self.conv_relu(self.conv2c(x)))
+        x = self.conv_maxpool2(x)
+        x = self.dropout2(x)
+        x = self.convWN(self.conv_relu(self.conv3a(x)))
+        x = self.convWN(self.conv_relu(self.conv3b(x)))
+        x = self.convWN(self.conv_relu(self.conv3c(x)))
+        x = self.conv_maxpool3(x)
+        x = self.dense(x)
+        return x
+
+# inference module
+class InferenceNet(nn.Module):
+    def __init__(self, in_channels, n_z):
+        super(InferenceNet, self).__init__()
+        self.inf02 = nn.Conv2d(in_channels=in_channels, out_channels=64, kernel_size=4,
+                               stride=2, padding=1)
+        self.inf03 = nn.BatchNorm2d(64)
+        self.inf11 = nn.Conv2d(in_channels=64, out_channels=128, kernel_size=4,
+                               stride=2, padding=1)
+        self.inf12 = nn.BatchNorm2d(128)
+        self.inf21 = nn.Conv2d(in_channels=128, out_channels=256, kernel_size=4,
+                               stride=2, padding=1)
+        self.inf22 = nn.BatchNorm2d(256)
+        self.inf31 = nn.Conv2d(in_channels=256, out_channels=512, kernel_size=4,
+                               stride=2, padding=1)
+        self.inf32 = nn.BatchNorm2d(512)
+        self.inf4 = nn.Linear(in_features=512, out_features=n_z)
+
+    def forward(self, x):
+        x = F.leaky_relu(self.inf03(self.inf02(x)))
+        x = F.leaky_relu(self.inf12(self.inf11(x)))
+        x = F.leaky_relu(self.inf22(self.inf21(x)))
+        x = F.leaky_relu(self.inf32(self.inf31(x)))
+        x = self.inf4(x)
+
+        return x
+
+
 # discriminator xy2p: test a pair of input comes from p(x, y) instead of p_c or p_g
 class DConvNet1(nn.Module):
     '''
@@ -172,13 +238,9 @@ class DConvNet1(nn.Module):
     def __init__(self, channel_in, num_classes, p_dropout=0.2, weight_init=True):
         super(DConvNet1, self).__init__()
 
-        self.logger = logging.getLogger(__name__)  # initialize logger
-
         self.num_classes = num_classes
 
         # general reusable layers:
-        # self.ConvConcat = ConvConcatLayer()
-        # self.MLPConcat = MLPConcatLayer()
         self.LReLU = nn.LeakyReLU(negative_slope=0.2)  # leaky ReLU activation function
         self.sgmd = nn.Sigmoid()  # sigmoid activation function
         self.drop = nn.Dropout(p=p_dropout)  # dropout layer
@@ -230,7 +292,7 @@ class DConvNet1(nn.Module):
             # initialize weights for all conv and lin layers
             self.apply(init_weights(normal=[1.0, 0.05]))
             # log network structure
-            self.logger.info(self)
+            print(self)
 
     def forward(self, x, y):
         # x: (bs, channel_in, dim_input)
@@ -266,120 +328,6 @@ class DConvNet1(nn.Module):
         return out
 
 
-# classifier module
-class Classifier_Net(nn.Module):
-    def __init__(self):
-        super(Classifier_Net, self).__init__()
-
-        self.conv1a = nn.Conv2d(in_channels=3, out_channels=128, kernel_size=3,
-                                stride=1, padding=1)
-        self.convWN = MeanOnlyBatchNorm(128)
-        self.conv1b = nn.Conv2d(in_channels=128, out_channels=128, kernel_size=3,
-                                stride=1, padding=1)
-        self.conv_relu = nn.LeakyReLU(negative_slope=0.1)
-        self.conv1c = nn.Conv2d(in_channels=128, out_channels=128, kernel_size=3,
-                                stride=1, padding=1)
-        self.conv_maxpool1 = nn.MaxPool2d(kernel_size=2)
-        self.dropout1 = nn.Dropout2d(p=0.5)
-        self.conv2a = nn.Conv2d(in_channels=128, out_channels=256, kernel_size=3,
-                                stride=1, padding=1)
-        self.conv2b = nn.Conv2d(in_channels=256, out_channels=256, kernel_size=3,
-                                stride=1, padding=1)
-        self.conv2c = nn.Conv2d(in_channels=256, out_channels=256, kernel_size=3,
-                                stride=1, padding=1)
-        self.conv_maxpool2 = nn.MaxPool2d(kernel_size=2)
-        self.dropout2 = nn.Dropout2d(p=0.5)
-        self.conv3a = nn.Conv2d(in_channels=256, out_channels=512, kernel_size=3,
-                                stride=1, padding=0)
-        self.conv3b = nn.Conv2d(in_channels=512, out_channels=256, kernel_size=1,
-                                stride=1, padding=0)
-        self.conv3c = nn.Conv2d(in_channels=256, out_channels=128, kernel_size=1,
-                                stride=1, padding=0)
-        self.conv_maxpool3 = nn.MaxPool2d(kernel_size=2)
-        self.dense = nn.Linear(in_features=128, out_features=10)
-
-    def forward(self, x):
-        x = Gaussian_NoiseLayer(x.shape)
-        x = self.convWN(self.conv_relu(self.conv1a(x)))
-        x = self.convWN(self.conv_relu(self.conv1b(x)))
-        x = self.convWN(self.conv_relu(self.conv1c(x)))
-        x = self.conv_maxpool1(x)
-        x = self.dropout1(x)
-        x = self.convWN(self.conv_relu(self.conv2a(x)))
-        x = self.convWN(self.conv_relu(self.conv2b(x)))
-        x = self.convWN(self.conv_relu(self.conv2c(x)))
-        x = self.conv_maxpool2(x)
-        x = self.dropout2(x)
-        x = self.convWN(self.conv_relu(self.conv3a(x)))
-        x = self.convWN(self.conv_relu(self.conv3b(x)))
-        x = self.convWN(self.conv_relu(self.conv3c(x)))
-        x = self.conv_maxpool3(x)
-        x = self.dense(x)
-        return x
-
-
-class Gaussian_NoiseLayer(nn.Module):
-    def __init__(self, shape, std=0.15):
-        super(Gaussian_NoiseLayer).__init__()
-        self.noise = Variable(torch.zeros(shape))  # .cuda()
-        self.std = std
-
-    def forward(self, x, deterministic=False):
-        if deterministic or (self.std == 0):
-            return x
-        else:
-            return x + self.noise.data.normal_(0, std=self.std)
-
-
-class MeanOnlyBatchNorm(nn.Module):
-    def __init__(self, num_features, momentum=0.999):
-        super(MeanOnlyBatchNorm, self).__init__()
-        self.num_features = num_features
-        self.momentum = momentum
-        self.register_buffer('running_mean', torch.zeros(num_features))
-        # self.reset_parameters()
-
-    def forward(self, x):
-
-        # mu = Variable(torch.mean(input,dim=0, keepdim=True).data, requires_grad=False)
-        if self.training is True:
-            mu = x.mean(dim=0, keepdim=True)
-            mu = self.momentum * mu + (1 - self.momentum) * Variable(self.running_mean)
-
-            self.running_mean = mu.data
-            return x.add_(-mu)
-        else:
-            return x.add_(-Variable(self.running_mean))
-
-
-# inference module
-class Inference_Net(nn.Module):
-    def __init__(self):
-        super(Inference_Net, self).__init__()
-        self.inf02 = nn.Conv2d(in_channels=in_channels, out_channels=64, kernel_size=4,
-                               stride=2, padding=1)
-        self.inf03 = nn.BatchNorm2d(64)
-        self.inf11 = nn.Conv2d(in_channels=64, out_channels=128, kernel_size=4,
-                               stride=2, padding=1)
-        self.inf12 = nn.BatchNorm2d(128)
-        self.inf21 = nn.Conv2d(in_channels=128, out_channels=256, kernel_size=4,
-                               stride=2, padding=1)
-        self.inf22 = nn.BatchNorm2d(256)
-        self.inf31 = nn.Conv2d(in_channels=256, out_channels=512, kernel_size=4,
-                               stride=2, padding=1)
-        self.inf32 = nn.BatchNorm2d(512)
-        self.inf4 = nn.Linear(in_features=512, out_features=n_z)
-
-    def forward(self, x):
-        x = F.leaky_relu(self.inf03(self.inf02(x)))
-        x = F.leaky_relu(self.inf12(self.inf11(x)))
-        x = F.leaky_relu(self.inf22(self.inf21(x)))
-        x = F.leaky_relu(self.inf32(self.inf31(x)))
-        x = self.inf4(x)
-
-        return x
-
-
 # discriminator xz
 class DConvNet2(nn.Module):
     '''
@@ -389,13 +337,9 @@ class DConvNet2(nn.Module):
     def __init__(self, n_z, channel_in, num_classes, weight_init=True):
         super(DConvNet2, self).__init__()
 
-        self.logger = logging.getLogger(__name__)  # initialize logger
-
         self.num_classes = num_classes
 
         # general reusable layers:
-        # self.ConvConcat = ConvConcatLayer()
-        # self.MLPConcat = MLPConcatLayer()
         self.LReLU = nn.LeakyReLU(negative_slope=0.2)  # leaky ReLU activation function
         self.sgmd = nn.Sigmoid()  # sigmoid activation function
 
@@ -440,7 +384,7 @@ class DConvNet2(nn.Module):
             # initialize weights for all conv and lin layers
             self.apply(init_weights(normal=[1.0, 0.05]))
             # log network structure
-            self.logger.info(self)
+            print(self)
 
     def forward(self, z, x):
         # x: (bs, channel_in, dim_input)
@@ -466,15 +410,23 @@ class DConvNet2(nn.Module):
 
 #########################################################################################################
 
-### INIT ###
+### INITS ###
 
 # GENRATOR
+generator = Generator(input_size=101, num_classes=NUM_CLASSES, dense_neurons=8192, num_output_features=3072)
 
 # INFERENCE
+inference = InferenceNet(in_channels=IN_CHANNELS, n_z=N_Z)
 
 # CLASSIFIER
+classifier = ClassifierNet(in_channels=IN_CHANNELS)
 
 # DISCRIMINATOR
+discriminator1 = DConvNet1(channel_in=IN_CHANNELS, num_classes=NUM_CLASSES)
+discriminator2 = DConvNet2(n_z=N_Z, channel_in=IN_CHANNELS, num_classes=NUM_CLASSES)
+
+# ZCA
+whitener = ZCA(x=x_unlabelled)
 
 # LOSS FUNCTIONS
 losses = {
@@ -489,9 +441,10 @@ optimizers = {
     'dis': optim.Adam(discriminator1.parameters() + discriminator2.parameters(), betas=(B1, 0.999), lr=LR),
     'gen': optim.Adam(generator.parameters(), betas=(B1, 0.999), lr=LR),
     'cla': optim.Adam(classifier.parameters(), betas=(b1_c, 0.999), lr=LR_CLA),  # robust adam??
-    'cla_pre': optim.Adam(pre_classifier.parameters(), lr=LR_CLA, betas=(b1_c, 0.999)),
+    'cla_pre': optim.Adam(classifier.parameters(), betas=(b1_c, 0.999), lr=LR_CLA),
     'inf': optim.Adam(inference.parameters(), betas=(B1, 0.999), lr=LR)
 }
+
 
 
 #########################################################################################################
