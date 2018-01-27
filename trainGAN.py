@@ -116,6 +116,43 @@ def train_discriminator(discriminator1, discriminator2, generator, inferator, cl
     return [dis1_cost.cpu().numpy().mean(), dis2_cost.cpu().numpy().mean()]
 
 
+def train_generator(optimizer, BCE_loss, MSE_loss, cross_entropy_loss,
+                    loss_dis_generated, loss_dis_styled, loss_inference_z_g, n_z,
+                    classifier_out_y, z_rand, sample_y):
+    '''
+    Args:
+        optimizer:          optimizer  for generator
+        BCE_loss:           binary cross entropy loss
+        MSE_loss:           mean squared error loss
+        cross_entropy_loss: cross entropy loss
+        loss_dis_generated: loss of discriminator 1
+        loss_dis_styled:    loss of discriminator 2
+        loss_inference_z_g: loss of inference
+        n_z:                number of z
+        classifier_out_y:   output of classifier
+        z_rand:             random z sample
+        sample_y:           sample of y
+
+    Returns:
+
+    '''
+    # compute loss
+    rz = MSE_loss(loss_inference_z_g, z_rand, n_z)
+    ry = cross_entropy_loss(classifier_out_y, sample_y)
+
+    gen_cost_p_g_1 = BCE_loss(loss_dis_generated, torch.ones(loss_dis_generated.shape))
+    gen_cost_p_g_2 = BCE_loss(loss_dis_styled, torch.ones(loss_dis_styled.shape))
+
+    generator_cost = gen_cost_p_g_1 + gen_cost_p_g_2 + rz + ry
+
+    # optimization routines and weight updates
+    optimizer.zero_grad()
+    generator_cost.backward()
+    optimizer.step()
+
+    return generator_cost.cpu().numpy().mean()
+
+
 def train_gan(discriminator1, discriminator2, generator, inferator, classificator, whitener,
               x_labelled, x_unlabelled, y_labelled, p_u_d, p_u_i,
               num_classes, batch_size, num_batches_u,
@@ -150,8 +187,6 @@ def train_gan(discriminator1, discriminator2, generator, inferator, classificato
     Returns:
 
     '''
-
-
 
     for i in range(num_batches_u):
             i_l = i % (x_labelled.shape[0] // batch_l)
@@ -193,6 +228,21 @@ def train_gan(discriminator1, discriminator2, generator, inferator, classificato
                                              loss=losses['bce'],
                                              cuda=cuda)
 
+            # placeholder
+            loss_inference = 0
+            classifier_out = 0
+
+            generator_loss = train_generator(optimizer=optimizers['gen'],
+                                             BCE_loss=losses['bce'],
+                                             MSE_loss=losses['mse'],
+                                             cross_entropy_loss=losses['ce'],
+                                             loss_dis_generated=dis_losses[0],
+                                             loss_dis_styled=dis_losses[1],
+                                             loss_inference_z_g=loss_inference,
+                                             n_z=n_z,
+                                             classifier_out_y=classifier_out,
+                                             z_rand=z_rand,
+                                             sample_y=sample_y)
 
 
             il_b = train_batch_inf(p_u_i[from_u_i:to_u_i], sample_y, lr)

@@ -47,7 +47,3 @@ def load(data_dir, subset='train'):
         return testx, testy
     else:
         raise NotImplementedError('subset should be either train or test')
-
-
-def rescale(matrix):
-    return np.cast(np.float32)(matrix)
