@@ -7,9 +7,36 @@ def train_discriminator(discriminator1, discriminator2, generator, inferator, cl
                         x_labelled, x_unlabelled, y_labelled,
                         slice_x_dis, y_real, z_real, slice_x_inf, sample_y, z_rand,
                         batch_size, d1_optimizer, d2_optimizer, loss, cuda):
+    '''
+
+    Args:
+        discriminator1(DConvNet1): Discriminator instance xy
+        discriminator2(DConvNet2): Discriminator instance xz
+        generator(Generator): Generator instance
+        inferator(Inference_Net): Inference Net instance
+        classificator(Classifier_Net): Classifier Net instance
+        whitener(ZCA): ZCA instance
+        x_labelled: batch of labelled input data
+        x_unlabelled: batch of unlabelled input data
+        y_labelled: batch of corresponding labels
+        slice_x_dis: indexes to select unlabelled data for discriminator
+        y_real: class labels
+        z_real: generator_x_m noise input
+        slice_x_inf: indexes to select unlabelled data for inference net
+        sample_y: sampled labels
+        z_rand: generator_x noise input
+        batch_size(int): size of mini-batch
+        d1_optimizer(torch.optim): optimizer instance for discriminator1
+        d2_optimizer(torch.optim): optimizer instance for discriminator2
+        loss(torch.nn.Loss): loss instance for discriminators (BCE)
+        cuda(bool): cuda flag (GPU)
+
+    Returns: list(discriminator1 loss, discriminator2 loss)
 
     '''
-    Parameter Translation
+
+    '''
+    Parameter Translation: Theano original --> PyTorch
     input:
         x_labelled[from_l:to_l],  # sym_x_l
         y_labelled[from_l:to_l],  # sym_y
@@ -97,6 +124,36 @@ def train_gan(discriminator1, discriminator2, generator, inferator, classificato
               batch_c, batch_l, batch_g,
               n_z, optimizers, losses, lr, cuda=False):
 
+    '''
+
+    Args:
+        discriminator1(DConvNet1): Discriminator instance xy
+        discriminator2(DConvNet2): Discriminator instance xz
+        generator(Generator): Generator instance
+        inferator(Inference_Net): Inference Net instance
+        classificator(Classifier_Net): Classifier Net instance
+        whitener(ZCA): ZCA instance
+        x_labelled: batch of labelled input data
+        x_unlabelled: batch of unlabelled input data
+        y_labelled: batch of corresponding labels
+        p_u_d:
+        p_u_i:
+        num_classes:
+        batch_size(int): size of mini-batch
+        num_batches_u:
+        batch_c:
+        batch_l:
+        batch_g:
+        n_z:
+        optimizers(dict): dictionary containing optimizer instances for all respective nets (dis1, dis2, gen, inf)
+        losses(dict): dictionary containing respective loss instances (BCE, MSE, CE)
+
+        cuda(bool):
+
+    Returns:
+
+    '''
+
 
 
     for i in range(num_batches_u):
@@ -141,10 +198,6 @@ def train_gan(discriminator1, discriminator2, generator, inferator, classificato
                                              cuda=cuda)
 
 
-
-
-            for j in xrange(len(dl)):
-                dl[j] += dl_b[j]
 
             il_b = train_batch_inf(p_u_i[from_u_i:to_u_i], sample_y, lr)
             for j in xrange(len(il)):
