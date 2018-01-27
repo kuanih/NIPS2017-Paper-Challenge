@@ -1,0 +1,34 @@
+version: 1  # compare https://fangpenlin.com/posts/2012/08/26/good-logging-practice-in-python/
+
+disable_existing_loggers: False
+
+formatters:
+  simpleFormatter:
+    format: '%(levelname)7s [%(asctime)s] %(name)s: %(message)s'
+    datefmt: '%H:%M:%S'
+
+handlers:
+    console:
+        class: logging.StreamHandler
+        level: INFO
+        formatter: simpleFormatter
+        stream: ext://sys.stdout
+
+    debug_file_handler:
+        class: logging.handlers.RotatingFileHandler
+        level: DEBUG
+        formatter: simpleFormatter
+        filename: ./debug.log
+        maxBytes: 10485760 # 10MB
+        backupCount: 20
+        encoding: utf8
+
+loggers:
+  clogger:
+    handlers: [console]
+  dlogger:
+    handlers: [debug_file_handler]
+
+root:
+  level: DEBUG
+  handlers: [console, debug_file_handler]

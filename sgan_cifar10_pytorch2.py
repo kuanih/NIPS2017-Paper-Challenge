@@ -13,9 +13,18 @@ import numpy as np
 import time
 import utils
 from sklearn.metrics import accuracy_score
-import logging
 
-# own utils
+# initialize logger
+import logging.config
+import yaml
+with open('./log_config.yaml') as file:
+    Dict = yaml.load(file)    # load config file
+    logging.config.dictConfig(Dict)    # import config
+
+logger = logging.getLogger(__name__)
+logger.info('PyTorch version: ' + str(torch.__version__))
+
+# import SGAN utils
 from layers import rampup, rampdown
 from zca import ZCA
 from models import Generator, InferenceNet, ClassifierNet, DConvNet1, DConvNet2
@@ -81,7 +90,7 @@ y_labelled = np.concatenate(y_labelled, axis=0)
 del train_x
 
 if True:
-    print('Size of training data', x_labelled.shape[0], x_unlabelled.shape[0])
+    logger.info('Size of training data', x_labelled.shape[0], x_unlabelled.shape[0])
     # y_order = np.argsort(y_labelled)
     # _x_mean = x_labelled[y_order]
     # image = paramgraphics.mat_to_img(_x_mean.T, dim_input,
@@ -127,7 +136,7 @@ losses = {
 
 ### PRETRAIN CLASSIFIER ###
 
-print('Start pretraining')
+logger.info('Start pretraining')
 for epoch in range(1, 1+NUM_EPOCHS_PRE):
     # randomly permute data and labels
     p_l = rng.permutation(x_labelled.shape[0])
@@ -150,7 +159,7 @@ for epoch in range(1, 1+NUM_EPOCHS_PRE):
          #                       y_labelled[i_c*batch_size:(i_c+1)*batch_size],
           #                      p_u[i*batch_size:(i+1)*batch_size], 3e-3, 0.9, 100)
 
-        #print(bp)
+        #logger.info(bp)
         x_l = x_labelled[i_c * batch_size:(i_c + 1) * batch_size]
         x_l_zca = whitener.apply(x_l)
         y = y_labelled[i_c*batch_size:(i_c+1)*batch_size]
@@ -189,7 +198,7 @@ for epoch in range(1, 1+NUM_EPOCHS_PRE):
         #accurracy_batch = evaluate(eval_x[i*batch_size_eval:(i+1)*batch_size_eval], eval_y[i*batch_size_eval:(i+1)*batch_size_eval])
         accurracy.append(accurracy_batch)
     accurracy=np.mean(accurracy)
-    print(str(epoch) + ':Pretrain error: ' + str(1- accurracy))
+    logger.info(str(epoch) + ':Pretrain error: ' + str(1- accurracy))
 
 
 
@@ -197,7 +206,7 @@ for epoch in range(1, 1+NUM_EPOCHS_PRE):
 lr_cla = LR_CLA
 lr = LR
 
-print("Start GAN training")
+logger.info("Start GAN training")
 for epoch in range(1, 1+NUM_EPOCHS):
 
     start_full = time.time()
@@ -264,9 +273,7 @@ for epoch in range(1, 1+NUM_EPOCHS):
             #                           eval_y[i * batch_size_eval:(i + 1) * batch_size_eval])
             accurracy.append(accurracy_batch)
         accurracy = np.mean(accurracy)
-        print('ErrorEval=%.5f\n' % (1 - accurracy,))
-        with open(logfile, 'a') as f:
-            f.write(('ErrorEval=%.5f\n\n' % (1 - accurracy,)))
+        logger.info('ErrorEval=%.5f\n' % (1 - accurracy,))
 
 
     start_gan = time.time()
@@ -292,6 +299,9 @@ for epoch in range(1, 1+NUM_EPOCHS):
 
     line = "*Epoch=%d Time=%.2f LR=%.5f\n" % (epoch, t, lr) + "DisLosses: " + str(dl) + "\nGenLosses: " + \
            str(gl) + "\nInfLosses: " + str(il) + "\nClaLosses: " + str(cl)
-    print(line)
-    with open(logfile, 'a') as f:
-        f.write(line + "\n")
+    logger.info(line)
+
+
+
+
+
