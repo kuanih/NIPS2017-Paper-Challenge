@@ -31,8 +31,8 @@ class Generator(nn.Module):
         self.BatchNorm2D_1 = nn.BatchNorm2d(dense_neurons * 4)
         self.BatchNorm2D_2 = nn.BatchNorm2d(num_output_features)
 
-    def forward(self, z, y):
-        x = mlp_concat(z, y, self.num_classes)
+    def forward(self, y, z):
+        x = mlp_concat(y, z, self.num_classes)
 
         x1 = self.Dense(x)
         x1 = self.Relu(x1)
