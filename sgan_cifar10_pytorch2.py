@@ -8,8 +8,10 @@ import time
 import math
 import utils
 from layers import conv_concat, mlp_concat
-
-
+from sklearn.metrics import accuracy_score
+import os
+outfolder="./cifar10_results"
+logfile=os.path.join(outfolder, 'logfile.log')
 '''
 data
 '''
@@ -290,7 +292,7 @@ class Discriminator_xz(nn.Module):
 objectives
 '''
 # zca
-x_u_rep_zca = whitener.apply(x_u_rep)
+
 # init
 
 # outputs
@@ -361,6 +363,8 @@ for epoch in range(1, 1+pre_num_epoch):
     x_labelled = Variable(x_labelled)
     y_labelled = Variable(y_labelled)
     x_unlabelled = Variable(x_unlabelled)
+    eval_x = Variable(eval_x)
+    eval_y = Variable(eval_y)
 
     for i in range(num_batches_u):
         i_c = i % num_batches_l
@@ -375,20 +379,35 @@ for epoch in range(1, 1+pre_num_epoch):
         cla_out_y_l = classifier(x_l_zca)
         cla_cost_l = cross_entropy(cla_out_y_l, y)
 
-
+        x_u_rep = x_unlabelled[p_u[i*batch_size:(i+1)*batch_size]] # sym_x_u_rep: shared_unlabel[slice_x_u_c]
+        x_u_rep_zca = whitener.apply(x_u_rep)
         cla_out_y_rep = classifier(x_u_rep_zca)
         x_u = x_unlabelled[p_u[i*batch_size:(i+1)*batch_size]]
         x_u_zca = whitener.apply(x_u)
         cla_out_y = classifier(x_u_zca)
         cla_cost_u = 100 * mse(cla_out_y, cla_out_y_rep)
 
+        pretrain_cost = cla_cost_l + cla_cost_u
+
+        cla_optimizer = optim.Adam(classifier.parameters(), betas=(0.9, 0.999),
+                                   lr= 3e-3)  # they implement robust adam
+
+        pretrain_cost.backward()
+        cla_optimizer.step()
+
 
     accurracy=[]
     for i in range(num_batches_e):
-        accurracy_batch = evaluate(eval_x[i*batch_size_eval:(i+1)*batch_size_eval], eval_y[i*batch_size_eval:(i+1)*batch_size_eval])
-        accurracy += accurracy_batch
+        x_eval = eval_x[i*batch_size_eval:(i+1)*batch_size_eval]
+        y_eval = eval_y[i*batch_size_eval:(i+1)*batch_size_eval]
+        y_predicted = classifier(x_eval)
+        accurracy_batch = accuracy_score(y_eval, y_predicted)
+
+
+        #accurracy_batch = evaluate(eval_x[i*batch_size_eval:(i+1)*batch_size_eval], eval_y[i*batch_size_eval:(i+1)*batch_size_eval])
+        accurracy.append(accurracy_batch)
     accurracy=np.mean(accurracy)
-    print(str(epoch) + ':Pretrain accuracy: ' + str(1-accurracy))
+    print(str(epoch) + ':Pretrain error: ' + str(1- accurracy))
 
 
 '''
@@ -408,6 +427,8 @@ for epoch in range(1, 1+num_epochs):
 
     x_labelled = Variable(x_labelled)
     y_labelled = Variable(y_labelled)
+    eval_x = Variable(eval_x)
+    eval_y = Variable(eval_y)
 
     if epoch < 500:
         if epoch % 50 == 1: # 4, 8, 12, 16
@@ -483,8 +504,55 @@ for epoch in range(1, 1+num_epochs):
                 # print statistics
             running_cla_cost += cla_cost.data[0]
 
+        accurracy = []
+        for i in range(num_batches_e):
+            x_eval = eval_x[i * batch_size_eval:(i + 1) * batch_size_eval]
+            y_eval = eval_y[i * batch_size_eval:(i + 1) * batch_size_eval]
+            y_predicted = classifier(x_eval)
+
+            #accurracy_batch = evaluate(eval_x[i * batch_size_eval:(i + 1) * batch_size_eval],
+            #                           eval_y[i * batch_size_eval:(i + 1) * batch_size_eval])
+            accurracy.append(accurracy_batch)
+        accurracy = np.mean(accurracy)
+        print('ErrorEval=%.5f\n' % (1 - accurracy,))
+        with open(logfile, 'a') as f:
+            f.write(('ErrorEval=%.5f\n\n' % (1 - accurracy,)))
 
 
+    for i in range(num_batches_u):
+        i_l = i % (x_labelled.shape[0] // batch_l)
+
+        from_u_i = i*batch_size
+        to_u_i = (i+1)*batch_size
+        from_u_d = i*batch_c
+        to_u_d = (i+1) * batch_c
+        from_l = i_l*batch_l
+        to_l = (i_l+1)*batch_l
+
+        sample_y = np.int32(np.repeat(np.arange(num_classes), batch_size/num_classes))
+        y_real = np.int32(np.random.randint(10, size=batch_g))
+        z_real = np.random.uniform(size=(batch_g, n_z)).astype(np.float32)
+
+        tmp = time.time()
+
+        
+
+        dl_b = train_batch_dis(x_labelled[from_l:to_l], y_labelled[from_l:to_l], p_u_d[from_u_d:to_u_d], y_real, z_real, p_u_i[from_u_i:to_u_i], sample_y, lr)
+        for j in xrange(len(dl)):
+            dl[j] += dl_b[j]
+
+        il_b = train_batch_inf(p_u_i[from_u_i:to_u_i], sample_y, lr)
+        for j in xrange(len(il)):
+            il[j] += il_b[j]
+
+        gl_b = train_batch_gen(sample_y, lr)
+        for j in xrange(len(gl)):
+            gl[j] += gl_b[j]
+
+        if i_l == ((x_labelled.shape[0] // batch_l) - 1):
+            p_l = rng.permutation(x_labelled.shape[0])
+            x_labelled = x_labelled[p_l]
+            y_labelled = y_labelled[p_l]
 
 
 
