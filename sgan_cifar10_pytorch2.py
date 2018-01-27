@@ -13,6 +13,7 @@ import os
 import zca
 from torch.nn.utils import weight_norm as wn
 
+
 outfolder="./cifar10_results"
 logfile=os.path.join(outfolder, 'logfile.log')
 '''
@@ -378,6 +379,8 @@ class Inference_Net(nn.Module):
 
         return x
 
+inferentor = Inference_Net()
+
 # discriminator xz
 class DConvNet2(nn.Module):
     '''
@@ -490,36 +493,37 @@ gen_cost_p_g_2 = bce(disxz_out_p_g, torch.ones(disxz_out_p_g.shape))
 #cla_cost_u = unsup_weight * mse(cla_out_y, cla_out_y_rep)
 #cla_cost_g = cross_entropy(cla_out_y_m, y_m) * w_g
 
-rz = mse(inf_z_g, z_rand)
-ry = cross_entropy(cla_out_y_g, y_g)
 
-pretrain_cost = cla_cost_l + cla_cost_u
+#rz = mse(inf_z_g, z_rand)
+#ry = cross_entropy(cla_out_y_g, y_g)
+
+#pretrain_cost = cla_cost_l + cla_cost_u
 
 #la_cost = cla_cost_l + cla_cost_u + cla_cost_g
 
-dis_cost = dis_cost_p + dis_cost_p_g
-disxz_cost = disxz_cost_p + disxz_cost_p_g
-inf_cost = inf_cost_p_i + rz
-gen_cost = gen_cost_p_g_1 + gen_cost_p_g_2 + rz + ry
+#dis_cost = dis_cost_p + dis_cost_p_g
+#disxz_cost = disxz_cost_p + disxz_cost_p_g
+#inf_cost = inf_cost_p_i + rz
+#gen_cost = gen_cost_p_g_1 + gen_cost_p_g_2 + rz + ry
 
-dis_cost_list=[dis_cost + disxz_cost, dis_cost, dis_cost_p, dis_cost_p_g, disxz_cost, disxz_cost_p, disxz_cost_p_g]
-gen_cost_list=[gen_cost, gen_cost_p_g_1, gen_cost_p_g_2, rz, ry]
-inf_cost_list=[inf_cost, inf_cost_p_i, rz]
+#dis_cost_list=[dis_cost + disxz_cost, dis_cost, dis_cost_p, dis_cost_p_g, disxz_cost, disxz_cost_p, disxz_cost_p_g]
+#gen_cost_list=[gen_cost, gen_cost_p_g_1, gen_cost_p_g_2, rz, ry]
+#inf_cost_list=[inf_cost, inf_cost_p_i, rz]
 
 #cla_cost_list=[cla_cost, cla_cost_l, cla_cost_u, cla_cost_g]
 
-inf_cost_list=[inf_cost, inf_cost_p_i, rz]
+#inf_cost_list=[inf_cost, inf_cost_p_i, rz]
 
 # updates of D
-dis_optimizer = optim.Adam(discriminator.parameters()+ discriminator_xz.parameters(), betas= (b1, 0.999), lr = lr) # just adding parameters togehter?
+#dis_optimizer = optim.Adam(discriminator.parameters()+ discriminator_xz.parameters(), betas= (b1, 0.999), lr = lr) # just adding parameters togehter?
 # updates of G
-gen_optimizer = optim.Adam(generator.parameters(), betas= (b1, 0.999), lr = lr)
+#gen_optimizer = optim.Adam(generator.parameters(), betas= (b1, 0.999), lr = lr)
 # updates of C
 # b1_c = rampdown_value * 0.9 + (1.0 - rampdown_value) * 0.5
-cla_optimizer = optim.Adam(classifier.parameters(), betas=(b1_c, 0.999),lr = cla_lr) # they implement robust adam
-pretrain_cla_optimizer = optim.Adam(pre_classifier.parameters(), lr = cla_lr, betas=(b1_c, 0.999))
+#cla_optimizer = optim.Adam(classifier.parameters(), betas=(b1_c, 0.999),lr = cla_lr) # they implement robust adam
+#pretrain_cla_optimizer = optim.Adam(pre_classifier.parameters(), lr = cla_lr, betas=(b1_c, 0.999))
 # updates of I
-inf_optimizer = optim.Adam(inference.parameters(), betas= (b1, 0.999), lr = lr)
+#inf_optimizer = optim.Adam(inference.parameters(), betas= (b1, 0.999), lr = lr)
 
 '''
 Pretrain C
@@ -539,7 +543,7 @@ for epoch in range(1, 1+pre_num_epoch):
     eval_y = Variable(eval_y)
 
     whitener = zca(x = x_unlabelled)
-    x_unlalbelled = Variable(x_unlabelled)
+    x_unlabelled = Variable(x_unlabelled)
 
     for i in range(num_batches_u):
         i_c = i % num_batches_l
@@ -715,6 +719,8 @@ for epoch in range(1, 1+num_epochs):
         sample_y = np.int32(np.repeat(np.arange(num_classes), batch_size/num_classes))
         y_real = np.int32(np.random.randint(10, size=batch_g))
         z_real = np.random.uniform(size=(batch_g, n_z)).astype(np.float32)
+        z_rand = np.random.uniform(size=(batch_size, n_z)).astype(np.float32)
+
 
         tmp = time.time()
 
@@ -724,18 +730,53 @@ for epoch in range(1, 1+num_epochs):
         for j in xrange(len(dl)):
             dl[j] += dl_b[j]
 
-        il_b = train_batch_inf(p_u_i[from_u_i:to_u_i], sample_y, lr)
-        for j in xrange(len(il)):
-            il[j] += il_b[j]
+        
+        #rain_batch_inf = theano.function(inputs=[slice_x_u_i, sym_y_g, sym_lr],
+        #                                  outputs=inf_cost_list, updates=inf_updates,
+        #                                  givens={sym_x_u_i: shared_unlabel[slice_x_u_i]})
 
-        gl_b = train_batch_gen(sample_y, lr)
-        for j in xrange(len(gl)):
-            gl[j] += gl_b[j]
+
+        il_b = train_batch_inf(p_u_i[from_u_i:to_u_i], sample_y, lr)
+        x_u_i = x_unlabelled[p_u_i[from_u_i:to_u_i]]
+
+        y_g = sample_y
+        gen_out_x = generator(z_rand, y_g)
+        inf_z = inferentor(x_u_i)
+        inf_z_g = inferentor(gen_out_x)
+        rz = mse(gen_out_x, inf_z_g)
+        inf_cost_p_i = bce(disxz_out_p, torch.zeros(disxz_out_p.shape))
+        inf_cost = inf_cost_p_i + rz
+        inf_optimizer = optim.Adam(inferentor.parameters(), betas=(b1, 0.999), lr=lr)
+        inf_cost.backward()
+        inf_optimizer.step()
+
+        #for j in xrange(len(il)):
+        #    il[j] += il_b[j]
+
+        #gl_b = train_batch_gen(sample_y, lr)
+        #for j in xrange(len(gl)):
+        #    gl[j] += gl_b[j]
 
         if i_l == ((x_labelled.shape[0] // batch_l) - 1):
             p_l = rng.permutation(x_labelled.shape[0])
             x_labelled = x_labelled[p_l]
             y_labelled = y_labelled[p_l]
 
+    #for i in xrange(len(dl)):
+    #    dl[i] /= num_batches_u
+    #for i in xrange(len(gl)):
+    #    gl[i] /= num_batches_u
+    #for i in xrange(len(cl)):
+    #    cl[i] /= num_batches_u
 
+    if (epoch >= anneal_lr_epoch) and (epoch % anneal_lr_every_epoch == 0):
+        lr = lr * anneal_lr_factor
+        cla_lr *= anneal_lr_factor_cla
 
+    t = time.time() - start
+
+    line = "*Epoch=%d Time=%.2f LR=%.5f\n" % (epoch, t, lr) + "DisLosses: " + str(dl) + "\nGenLosses: " + \
+           str(gl) + "\nInfLosses: " + str(il) + "\nClaLosses: " + str(cl)
+    print(line)
+    with open(logfile, 'a') as f:
+        f.write(line + "\n")
