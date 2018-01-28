@@ -8,7 +8,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.nn.utils import weight_norm as wn
 
-from layers import conv_concat, mlp_concat, init_weights, GaussianNoiseLayer, MeanOnlyBatchNorm
+from layers import conv_concat, mlp_concat, init_weights, Gaussian_NoiseLayer, MeanOnlyBatchNorm
 
 
 ### MODEL STRUCTURES ###
@@ -75,15 +75,14 @@ class Generator(nn.Module):
 
 
 # classifier module
-class ClassifierNet(nn.Module):
-    def __init__(self, in_channels, weight_init=True):
-        super(ClassifierNet, self).__init__()
-
+class Classifier_Net(nn.Module):
+    def __init__(self, weight_init=True):
+        super(Classifier_Net, self).__init__()
         self.logger = logging.getLogger(__name__)  # initialize logger
-
-        self.conv1a = nn.Conv2d(in_channels=in_channels, out_channels=128, kernel_size=3,
+        self.gaussian = Gaussian_NoiseLayer()
+        self.conv1a = nn.Conv2d(in_channels=3, out_channels=128, kernel_size=3,
                                 stride=1, padding=1)
-        self.convWN = MeanOnlyBatchNorm(128)
+        self.convWN1 = MeanOnlyBatchNorm([1, 128, 32, 32])
         self.conv1b = nn.Conv2d(in_channels=128, out_channels=128, kernel_size=3,
                                 stride=1, padding=1)
         self.conv_relu = nn.LeakyReLU(negative_slope=0.1)
@@ -93,6 +92,7 @@ class ClassifierNet(nn.Module):
         self.dropout1 = nn.Dropout2d(p=0.5)
         self.conv2a = nn.Conv2d(in_channels=128, out_channels=256, kernel_size=3,
                                 stride=1, padding=1)
+        self.convWN2 = MeanOnlyBatchNorm([1, 256, 16, 16])
         self.conv2b = nn.Conv2d(in_channels=256, out_channels=256, kernel_size=3,
                                 stride=1, padding=1)
         self.conv2c = nn.Conv2d(in_channels=256, out_channels=256, kernel_size=3,
@@ -100,13 +100,16 @@ class ClassifierNet(nn.Module):
         self.conv_maxpool2 = nn.MaxPool2d(kernel_size=2)
         self.dropout2 = nn.Dropout2d(p=0.5)
         self.conv3a = nn.Conv2d(in_channels=256, out_channels=512, kernel_size=3,
-                                stride=1, padding=0)
+                                stride=1, padding=0)  # output[6,6]
+        self.convWN3a = MeanOnlyBatchNorm([1, 512, 6, 6])
         self.conv3b = nn.Conv2d(in_channels=512, out_channels=256, kernel_size=1,
                                 stride=1, padding=0)
+        self.convWN3b = MeanOnlyBatchNorm([1, 256, 6, 6])
         self.conv3c = nn.Conv2d(in_channels=256, out_channels=128, kernel_size=1,
                                 stride=1, padding=0)
-        self.conv_maxpool3 = nn.MaxPool2d(kernel_size=2)
-        self.dense = nn.Linear(in_features=128, out_features=10)
+        self.convWN3c = MeanOnlyBatchNorm([1, 128, 6, 6])
+        self.conv_globalpool = nn.AdaptiveAvgPool2d(6)
+        self.dense = nn.Linear(in_features=128 * 6 * 6, out_features=10)
 
         if weight_init:
             # initialize weights for all conv and lin layers
@@ -115,23 +118,25 @@ class ClassifierNet(nn.Module):
             self.logger.info(self)
 
     def forward(self, x):
-        x = GaussianNoiseLayer(x.size())
-        x = self.convWN(self.conv_relu(self.conv1a(x)))
-        x = self.convWN(self.conv_relu(self.conv1b(x)))
-        x = self.convWN(self.conv_relu(self.conv1c(x)))
+        x = self.gaussian(x, cuda=False)
+        x = self.convWN1(self.conv_relu(self.conv1a(x)))
+        x = self.convWN1(self.conv_relu(self.conv1b(x)))
+        x = self.convWN1(self.conv_relu(self.conv1c(x)))
         x = self.conv_maxpool1(x)
         x = self.dropout1(x)
-        x = self.convWN(self.conv_relu(self.conv2a(x)))
-        x = self.convWN(self.conv_relu(self.conv2b(x)))
-        x = self.convWN(self.conv_relu(self.conv2c(x)))
+        x = self.convWN2(self.conv_relu(self.conv2a(x)))
+        x = self.convWN2(self.conv_relu(self.conv2b(x)))
+        x = self.convWN2(self.conv_relu(self.conv2c(x)))
         x = self.conv_maxpool2(x)
         x = self.dropout2(x)
-        x = self.convWN(self.conv_relu(self.conv3a(x)))
-        x = self.convWN(self.conv_relu(self.conv3b(x)))
-        x = self.convWN(self.conv_relu(self.conv3c(x)))
-        x = self.conv_maxpool3(x)
+        x = self.convWN3a(self.conv_relu(self.conv3a(x)))
+        x = self.convWN3b(self.conv_relu(self.conv3b(x)))
+        x = self.convWN3c(self.conv_relu(self.conv3c(x)))
+        x = self.conv_globalpool(x)
+        x = x.view(-1, 128 * 6 * 6)
         x = self.dense(x)
         return x
+
 
 
 # inference module
