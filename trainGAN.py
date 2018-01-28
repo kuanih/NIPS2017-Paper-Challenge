@@ -308,38 +308,49 @@ def train_classifier(x_labelled, y_labelled, x_unlabelled, num_batches_u, eval_e
         # convert to torch tensor variable
         y_real = Variable(torch.from_numpy(y_real))
         z_real = Variable(torch.from_numpy(z_real))
-        y = Variable(torch.from_numpy(y))
+        y = Variable(torch.from_numpy(y).type(torch.LongTensor))
         x_l_zca = Variable(torch.from_numpy(x_l_zca))
         x_u_rep_zca = Variable(torch.from_numpy(x_u_rep_zca))
         x_u_zca = Variable(torch.from_numpy(x_u_zca))
-
         if cuda:
-            y_real, z_real, y, x_l_zca, \
-            x_u_rep_zca, x_u_zca = Variable(y_real), Variable(z_real), \
-                                   Variable(y), Variable(x_l_zca), Variable(x_u_rep_zca), Variable(x_u_zca)
+            y_real, z_real, y = y_real.cuda(), z_real.cuda(), y.cuda()
+            x_l_zca, x_u_rep_zca, x_u_zca = x_l_zca.cuda(), x_u_rep_zca.cuda(), x_u_zca.cuda()
 
-        cla_out_y_l = classifier(x_l_zca)
+        # classify input
+        cla_out_y_l = classifier(x_l_zca, cuda=cuda)
+        # calculate loss
         cla_cost_l = losses['ce'](cla_out_y_l, y)  # size_average in pytorch is by default
 
-        cla_out_y_rep = classifier(x_u_rep_zca)
-        cla_out_y = classifier(x_u_zca)
-        cla_cost_u = unsup_weight * losses['mse'](cla_out_y, cla_out_y_rep)
+        # classify input for target
+        cla_out_y_rep = classifier(x_u_rep_zca, cuda=cuda)
+        target = cla_out_y_rep.detach()
+        del cla_out_y_rep
+
+        # classify input
+        cla_out_y = classifier(x_u_zca, cuda=cuda)
+        # calculate loss
+        cla_cost_u = unsup_weight * losses['mse'](cla_out_y, target)
 
         y_m = y_real
         z_m = z_real
         gen_out_x_m = generator(z=z_m, y=y_m)
         gen_out_x_m_zca = whitener.apply(gen_out_x_m)
-        cla_out_y_m = classifier(gen_out_x_m_zca)
+
+        # classify input
+        cla_out_y_m = classifier(gen_out_x_m_zca, cuda=cuda)
+        # calculate loss
         cla_cost_g = losses['ce'](cla_out_y_m, y_m) * w_g
 
+        # sum individual losses for backward
         cla_cost = cla_cost_l + cla_cost_u + cla_cost_g
 
         cla_optimizer = optim.Adam(classifier.parameters(), betas=(b1_c, 0.999), lr=cla_lr)
-        # zero the parameter gradients
+        # zero the parameter gradients, optimize and update parameters
         cla_optimizer.zero_grad()
         cla_cost.backward()
         cla_optimizer.step()
 
+        # update batch permutations
         if i_l == ((x_labelled.shape[0] // size_l) - 1):
             p_l = rng.permutation(x_labelled.shape[0])
             x_labelled = x_labelled[p_l]

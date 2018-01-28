@@ -144,7 +144,7 @@ else:
 #########################################################################################################
 
 ### PRETRAIN CLASSIFIER ###
-
+'''
 logger.info('Start pretraining...')
 for epoch in range(1, 1+NUM_EPOCHS_PRE):
 
@@ -157,7 +157,7 @@ for epoch in range(1, 1+NUM_EPOCHS_PRE):
 
     logger.info(str(epoch) + ':Pretrain error: ' + str(1 - accurracy))
 
-
+'''
 
 ### GAN TRAINING ###
 
@@ -201,6 +201,8 @@ for epoch in range(1, 1+NUM_EPOCHS):
     # if current epoch is an evaluation epoch, train classifier and report results
     if epoch % EVAL_EPOCH == 0:
 
+        logger.info('Train classifier...')
+
         rampup_value = rampup(epoch-1)
         rampdown_value = rampdown(epoch-1)
         b1_c = rampdown_value * 0.9 + (1.0 - rampdown_value) * 0.5
@@ -237,10 +239,9 @@ for epoch in range(1, 1+NUM_EPOCHS):
 
         logger.info('ErrorEval=%.5f\n' % (1 - accurracy))
 
-
+    logger.info('Train generator, inference and discriminator model...')
     # train GAN model
     for i in range(num_batches_u):
-
         gan_losses = train_gan(discriminator1=discriminator1,
                                discriminator2=discriminator2,
                                generator=generator,
