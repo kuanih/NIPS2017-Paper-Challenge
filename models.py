@@ -41,7 +41,7 @@ class Generator(nn.Module):
 
         if weight_init:
             # initialize weights for all conv and lin layers
-            self.apply(init_weights(normal=[1.0, 0.05]))
+            self.apply(init_weights)
             # log network structure
             self.logger.info(self)
 
@@ -110,7 +110,7 @@ class ClassifierNet(nn.Module):
 
         if weight_init:
             # initialize weights for all conv and lin layers
-            self.apply(init_weights(normal=[1.0, 0.05]))
+            self.apply(init_weights)
             # log network structure
             self.logger.info(self)
 
@@ -157,7 +157,7 @@ class InferenceNet(nn.Module):
 
         if weight_init:
             # initialize weights for all conv and lin layers
-            self.apply(init_weights(normal=[1.0, 0.05]))
+            self.apply(init_weights)
             # log network structure
             self.logger.info(self)
 
@@ -235,7 +235,7 @@ class DConvNet1(nn.Module):
 
         if weight_init:
             # initialize weights for all conv and lin layers
-            self.apply(init_weights(normal=[1.0, 0.05]))
+            self.apply(init_weights)
             # log network structure
             self.logger.info(self)
 
@@ -329,7 +329,7 @@ class DConvNet2(nn.Module):
 
         if weight_init:
             # initialize weights for all conv and lin layers
-            self.apply(init_weights(normal=[1.0, 0.05]))
+            self.apply(init_weights)
             # log network structure
             self.logger.info(self)
 

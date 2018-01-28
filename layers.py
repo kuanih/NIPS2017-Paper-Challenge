@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 from torch.autograd import Variable
 import math
+import logging
 
 
 def conv_concat(x, y, num_cls):
@@ -46,43 +47,37 @@ def mlp_concat(x, y, num_cls):
     return torch.cat([x, y], dim=1)
 
 
-def init_weights(model, normal=None):
-    '''initializes the weights of specific NN layers by xavier normal initialization
+def init_weights(model):
+    '''initializes the weights of specific NN layers by normal initialization
 
     Args:
         model (torch.nn.Module): neural net model
-        normal (list): (optional) params list for standard normal initialization, [mu, sigma]
 
     '''
+    logger = logging.getLogger(__name__)
 
-    if normal:
-        mu = normal[0]
-        sigma = normal[1]
+    # initialization params:
+    mu = 1.0
+    sigma = 0.05
 
     if type(model) in [nn.Linear]:  # linear layers
-        if normal:
-            model.weight.data.normal_(mu, sigma)
-            model.bias.data.fill_(0)
-        else:
-            nn.init.xavier_normal(model.weight.data)
-        print('Weights initialized.')
+        model.weight.data.normal_(mu, sigma)
+        model.bias.data.fill_(0)
+        logger.debug('Weights initialized.')
+
     elif type(model) in [nn.ConvTranspose2d, nn.Conv2d]:  # convolutional layers
-        if normal:
-            model.weight.data.normal_(mu, sigma)
+        model.weight.data.normal_(mu, sigma)
+        if model.bias:
             model.bias.data.fill_(0)
-        else:
-            nn.init.xavier_normal(model.weight.data)
-        print('Weights initialized.')
-    elif type(model) in [nn.BatchNorm2d]:   # init batch normalizations from normal dist
-        if normal:
-            model.weight.data.normal_(mu, sigma)
-            model.bias.data.fill_(0)
-        else:
-            model.weight.data.normal_(1.0, 0.02)
-            model.bias.data.fill_(0)
-        print('Weights initialized.')
+        logger.debug('Weights initialized.')
+
+    elif type(model) in [nn.BatchNorm2d, nn.BatchNorm1d]:   # batch normalizations
+        model.weight.data.normal_(mu, sigma)
+        model.bias.data.fill_(0)
+        logger.debug('Weights initialized.')
+
     else:
-        raise NotImplementedError('Initialization failed. Unknown module type: {}'.format(str(type(model))))
+        logger.debug('Initialization failed. Unknown module type: {}'.format(str(type(model))))
 
 
 class GaussianNoiseLayer(nn.Module):
