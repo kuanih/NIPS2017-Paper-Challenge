@@ -11,11 +11,12 @@ from torch.nn.utils import weight_norm as wn
 from layers import conv_concat, mlp_concat, init_weights, Gaussian_NoiseLayer, MeanOnlyBatchNorm
 
 
+
 ### MODEL STRUCTURES ###
 
 # generator y2x: p_g(x, y) = p(y) p_g(x | y) where x = G(z, y), z follows p_g(z)
 class Generator(nn.Module):
-    def __init__(self, input_size, num_classes, dense_neurons, num_output_features, weight_init=True):
+    def __init__(self, input_size, num_classes, dense_neurons, weight_init=True):
         super(Generator, self).__init__()
 
         self.logger = logging.getLogger(__name__)  # initialize logger
@@ -26,52 +27,52 @@ class Generator(nn.Module):
         self.Relu = nn.ReLU()
         self.Tanh = nn.Tanh()
 
-        self.Deconv2D_0 = nn.ConvTranspose2d(in_channels=512, out_channels=256,
-                                             kernel_size=(5, 5), bias=False)
-        self.Deconv2D_1 = nn.ConvTranspose2d(in_channels=256, out_channels=128,
-                                             kernel_size=(5, 5), bias=False)
-        self.Deconv2D_2 = nn.ConvTranspose2d(in_channels=128, out_channels=3,
-                                             kernel_size=(5, 5), bias=False)
+        self.Deconv2D_0 = nn.ConvTranspose2d(in_channels=522, out_channels=256,
+                                             kernel_size=5, stride=2, padding=2,
+                                             output_padding=1, bias=False)
+        self.Deconv2D_1 = nn.ConvTranspose2d(in_channels=266, out_channels=128,
+                                             kernel_size=5, stride=2, padding=2,
+                                             output_padding=1, bias=False)
+        self.Deconv2D_2 = wn(nn.ConvTranspose2d(in_channels=138, out_channels=3,
+                                                kernel_size=5, stride=2, padding=2,
+                                                output_padding=1, bias=False))
 
         self.BatchNorm1D = nn.BatchNorm1d(dense_neurons)
 
-        self.BatchNorm2D_0 = nn.BatchNorm2d(dense_neurons * 2)
-        self.BatchNorm2D_1 = nn.BatchNorm2d(dense_neurons * 4)
-        self.BatchNorm2D_2 = nn.BatchNorm2d(num_output_features)
+        self.BatchNorm2D_0 = nn.BatchNorm2d(256)
+        self.BatchNorm2D_1 = nn.BatchNorm2d(128)
 
         if weight_init:
             # initialize weights for all conv and lin layers
             self.apply(init_weights)
             # log network structure
-            self.logger.info(self)
+            self.logger.debug(self)
 
     def forward(self, z, y):
         x = mlp_concat(z, y, self.num_classes)
 
-        x1 = self.Dense(x)
-        x1 = self.Relu(x1)
-        x1 = self.BatchNorm1D(x1)
+        x = self.Dense(x)
+        x = self.Relu(x)
+        x = self.BatchNorm1D(x)
 
-        x2 = x1.resize_(-1, 512, 4, 4)
-        x2 = conv_concat(x2, y, self.num_classes)
+        x = x.resize(z.size(0), 512, 4, 4)
+        x = conv_concat(x, y, self.num_classes)
 
-        x3 = self.Deconv2D_0(x2)                    # output shape (256,8,8) = 8192 * 2
-        x3 = self.Relu(x3)
-        x3 = self.BatchNorm2D_0(x3)
+        x = self.Deconv2D_0(x)                    # output shape (256,8,8) = 8192 * 2
+        x = self.Relu(x)
+        x = self.BatchNorm2D_0(x)
 
-        x4 = conv_concat(x3, y, self.num_classes)
+        x = conv_concat(x, y, self.num_classes)
 
-        x5 = self.Deconv2D_1(x4)                    # output shape (128,16,16) = 8192 * 2 * 2
-        x5 = self.Relu(x5)
-        x5 = self.BatchNorm2D_1(x5)
+        x = self.Deconv2D_1(x)                    # output shape (128,16,16) = 8192 * 2 * 2
+        x = self.Relu(x)
+        x = self.BatchNorm2D_1(x)
 
-        x6 = conv_concat(x5, y, self.num_classes)
-        x6 = self.Deconv2D_2(x6)                    # output shape (3, 32, 32) = 3072
-        x6 = self.Tanh(x6)
+        x = conv_concat(x, y, self.num_classes)
+        x = self.Deconv2D_2(x)                    # output shape (3, 32, 32) = 3072
+        x = self.Tanh(x)
 
-        x7 = wn(x6)
-
-        return x7
+        return x
 
 
 # classifier module
@@ -115,12 +116,14 @@ class ClassifierNet(nn.Module):
         self.conv_globalpool = nn.AdaptiveAvgPool2d(6)
 
         self.dense = nn.Linear(in_features=128 * 6 * 6, out_features=10)
+        self.smx = nn.Softmax()
+        #self.WNfinal = MeanOnlyBatchNorm([1, 128, 6, 6])
 
         if weight_init:
             # initialize weights for all conv and lin layers
             self.apply(init_weights)
             # log network structure
-            self.logger.info(self)
+            self.logger.debug(self)
 
     def forward(self, x, cuda):
         x = self.gaussian(x, cuda=cuda)
@@ -139,11 +142,13 @@ class ClassifierNet(nn.Module):
         x = self.convWN3c(self.conv_relu(self.conv3c(x)))
         x = self.conv_globalpool(x)
         x = x.view(-1, 128 * 6 * 6)
-        x = self.dense(x)
+        #x = self.WNfinal(self.smx(self.dense(x)))
+        x = self.smx(self.dense(x))
         return x
 
 
 
+# inference module
 # inference module
 class InferenceNet(nn.Module):
     def __init__(self, in_channels, n_z, weight_init=True):
@@ -163,19 +168,20 @@ class InferenceNet(nn.Module):
         self.inf31 = nn.Conv2d(in_channels=256, out_channels=512, kernel_size=4,
                                stride=2, padding=1)
         self.inf32 = nn.BatchNorm2d(512)
-        self.inf4 = nn.Linear(in_features=512, out_features=n_z)
+        self.inf4 = nn.Linear(in_features=512*2*2, out_features=n_z)
 
         if weight_init:
             # initialize weights for all conv and lin layers
             self.apply(init_weights)
             # log network structure
-            self.logger.info(self)
+            self.logger.debug(self)
 
     def forward(self, x):
         x = F.leaky_relu(self.inf03(self.inf02(x)))
         x = F.leaky_relu(self.inf12(self.inf11(x)))
         x = F.leaky_relu(self.inf22(self.inf21(x)))
         x = F.leaky_relu(self.inf32(self.inf31(x)))
+        x = x.view(-1, 512*2*2)
         x = self.inf4(x)
 
         return x
@@ -204,42 +210,42 @@ class DConvNet1(nn.Module):
         # drop
         # ConvConcat
 
-        self.conv1 = wn(nn.Conv2d(in_channels=channel_in, out_channels=32,
+        self.conv1 = wn(nn.Conv2d(in_channels=channel_in + num_classes, out_channels=32,
                                   kernel_size=(3, 3), stride=(1, 1), padding=1, bias=False))
         # LReLU
         # ConvConcat
 
-        self.conv2 = wn(nn.Conv2d(in_channels=32, out_channels=32,
+        self.conv2 = wn(nn.Conv2d(in_channels=32 + num_classes, out_channels=32,
                                   kernel_size=(3, 3), stride=2, padding=1, bias=False))
         # LReLU
         # drop
         # ConvConcat
 
-        self.conv3 = wn(nn.Conv2d(in_channels=32, out_channels=64,
+        self.conv3 = wn(nn.Conv2d(in_channels=32 + num_classes, out_channels=64,
                                   kernel_size=(3, 3), stride=(1, 1), padding=1, bias=False))
         # LReLU
         # ConvConcat
 
-        self.conv4 = wn(nn.Conv2d(in_channels=64, out_channels=64,
+        self.conv4 = wn(nn.Conv2d(in_channels=64 + num_classes, out_channels=64,
                                   kernel_size=(3, 3), stride=2, padding=1, bias=False))
         # LReLU
         # drop
         # ConvConcat
 
-        self.conv5 = wn(nn.Conv2d(in_channels=64, out_channels=128,
+        self.conv5 = wn(nn.Conv2d(in_channels=64 + num_classes, out_channels=128,
                                   kernel_size=(3, 3), stride=(1, 1), padding=0, bias=False))
         # LReLU
         # ConvConcat
 
-        self.conv6 = wn(nn.Conv2d(in_channels=128, out_channels=128,
+        self.conv6 = wn(nn.Conv2d(in_channels=128 + num_classes, out_channels=128,
                                   kernel_size=(3, 3), stride=(1, 1), padding=0, bias=False))
         # LReLU
 
-        self.globalPool = nn.AdaptiveAvgPool1d(output_size=128)
+        self.globalPool = nn.AdaptiveAvgPool2d(output_size=4)
 
         # MLPConcat
 
-        self.lin = nn.Linear(in_features=128,
+        self.lin = nn.Linear(in_features=128 * 4 * 4 + num_classes,
                              out_features=1)
         # smg
 
@@ -247,36 +253,38 @@ class DConvNet1(nn.Module):
             # initialize weights for all conv and lin layers
             self.apply(init_weights)
             # log network structure
-            self.logger.info(self)
+            self.logger.debug(self)
 
     def forward(self, x, y):
         # x: (bs, channel_in, dim_input)
         # y: (bs, 1)
 
         x0 = self.drop(x)
-        x0 = self.conv_concat(x0, y, self.num_classes)
+        x0 = conv_concat(x0, y, self.num_classes)
 
         x1 = self.LReLU(self.conv1(x0))
-        x1 = self.conv_concat(x1, y, self.num_classes)
+        x1 = conv_concat(x1, y, self.num_classes)
 
         x2 = self.LReLU(self.conv2(x1))
         x2 = self.drop(x2)
-        x2 = self.conv_concat(x2, y, self.num_classes)
+        x2 = conv_concat(x2, y, self.num_classes)
 
         x3 = self.LReLU(self.conv3(x2))
-        x3 = self.conv_concat(x3, y, self.num_classes)
+        x3 = conv_concat(x3, y, self.num_classes)
 
         x4 = self.LReLU(self.conv4(x3))
         x4 = self.drop(x4)
-        x4 = self.conv_concat(x4, y, self.num_classes)
+        x4 = conv_concat(x4, y, self.num_classes)
 
         x5 = self.LReLU(self.conv5(x4))
-        x5 = self.conv_concat(x5, y, self.num_classes)
+        x5 = conv_concat(x5, y, self.num_classes)
 
         x6 = self.LReLU(self.conv6(x5))
 
         x_pool = self.globalPool(x6)
-        x_out = self.mlp_concat(x_pool, y)
+
+        x_pool = x_pool.view(-1, 128 * 4 * 4)
+        x_out = mlp_concat(x_pool, y, self.num_classes)
 
         out = self.sgmd(self.lin(x_out))
 
@@ -341,7 +349,7 @@ class DConvNet2(nn.Module):
             # initialize weights for all conv and lin layers
             self.apply(init_weights)
             # log network structure
-            self.logger.info(self)
+            self.logger.debug(self)
 
     def forward(self, z, x):
         # x: (bs, channel_in, dim_input)
