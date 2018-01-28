@@ -93,7 +93,7 @@ class Gaussian_NoiseLayer(nn.Module):
             return x
         else:
             if cuda:
-                return x + Variable(torch.randn(x.size()).cuda() * self.std)
+                return x + Variable(torch.randn(x.size()) * self.std).cuda()
             else:
                 return x + Variable(torch.randn(x.size()) * self.std)
 

@@ -27,7 +27,7 @@ logger.info('PyTorch version: ' + str(torch.__version__))
 from layers import rampup, rampdown
 from zca import ZCA
 from models import Generator, InferenceNet, ClassifierNet, DConvNet1, DConvNet2
-from trainGAN import pretrain_classifier, train_classifier, train_gan
+from trainGAN import pretrain_classifier, train_classifier, train_gan, eval_classifier
 
 
 ### GLOBAL PARAMS ###
@@ -38,6 +38,7 @@ NUM_LABELLED = 4000
 SSL_SEED = 1
 NP_SEED = 1234
 CUDA = torch.cuda.is_available()
+logger.info('Cuda = ' + str(CUDA))
 
 # data dependent
 IN_CHANNELS = 3
@@ -67,6 +68,7 @@ path_out = "./results"
 
 
 ### DATA ###
+logger.info('Loading data...')
 train_x, train_y = utils.load('./cifar10/', 'train')
 eval_x, eval_y = utils.load('./cifar10/', 'test')
 
@@ -112,15 +114,31 @@ classifier = ClassifierNet(in_channels=IN_CHANNELS)
 discriminator1 = DConvNet1(channel_in=IN_CHANNELS, num_classes=NUM_CLASSES)
 discriminator2 = DConvNet2(n_z=N_Z, channel_in=IN_CHANNELS, num_classes=NUM_CLASSES)
 
+
+# put on GPU
+if CUDA:
+    generator.cuda()
+    inference.cuda()
+    classifier.cuda()
+    discriminator1.cuda()
+    discriminator2.cuda()
+
 # ZCA
 whitener = ZCA(x=x_unlabelled)
 
 # LOSS FUNCTIONS
-losses = {
-    'bce': nn.BCELoss(),
-    'mse': nn.MSELoss(),
-    'ce': nn.CrossEntropyLoss()
-}
+if CUDA:
+    losses = {
+        'bce': nn.BCELoss().cuda(),
+        'mse': nn.MSELoss().cuda(),
+        'ce': nn.CrossEntropyLoss().cuda()
+    }
+else:
+    losses = {
+        'bce': nn.BCELoss(),
+        'mse': nn.MSELoss(),
+        'ce': nn.CrossEntropyLoss()
+    }
 
 
 #########################################################################################################
@@ -135,17 +153,8 @@ for epoch in range(1, 1+NUM_EPOCHS_PRE):
                                      BATCH_SIZE, num_batches_u, classifier, whitener, losses, rng, CUDA)
 
     # evaluate
-    accurracy=[]
-    for i in range(num_batches_e):
-        x_eval = eval_x[i*BATCH_SIZE_EVAL:(i+1)*BATCH_SIZE_EVAL]
-        y_eval = eval_y[i*BATCH_SIZE_EVAL:(i+1)*BATCH_SIZE_EVAL]
-        x_eval_zca = whitener.apply(x_eval)
+    accurracy = eval_classifier(num_batches_e, eval_x, eval_y, BATCH_SIZE_EVAL, whitener, classifier, CUDA)
 
-        cla_out_y_eval = classifier(x_eval_zca)
-        accurracy_batch = accuracy_score(y_eval, cla_out_y_eval)
-        accurracy.append(accurracy_batch)
-
-    accurracy = np.mean(accurracy)
     logger.info(str(epoch) + ':Pretrain error: ' + str(1 - accurracy))
 
 
@@ -224,17 +233,8 @@ for epoch in range(1, 1+NUM_EPOCHS):
                                       cuda=CUDA)
 
         # evaluate & report
-        accurracy = []
-        for i in range(num_batches_e):
-            x_eval = eval_x[i * BATCH_SIZE_EVAL:(i + 1) * BATCH_SIZE_EVAL]
-            y_eval = eval_y[i * BATCH_SIZE_EVAL:(i + 1) * BATCH_SIZE_EVAL]
-            x_eval_zca = whitener.apply(x_eval)
+        accurracy = eval_classifier(num_batches_e, eval_x, eval_y, BATCH_SIZE_EVAL, whitener, classifier, CUDA)
 
-            cla_out_y_eval = classifier(x_eval_zca)
-            accurracy_batch = accuracy_score(y_eval, cla_out_y_eval)
-            accurracy.append(accurracy_batch)
-
-        accurracy = np.mean(accurracy)
         logger.info('ErrorEval=%.5f\n' % (1 - accurracy))
 
 
