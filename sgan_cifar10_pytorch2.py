@@ -153,7 +153,7 @@ for epoch in range(1, 1+NUM_EPOCHS_PRE):
     # evaluate
     accurracy = eval_classifier(num_batches_e, eval_x, eval_y, BATCH_SIZE_EVAL, whitener, classifier, CUDA)
 
-    logger.info(str(epoch) + ':Pretrain error: ' + str(1 - accurracy))
+    logger.info(str(epoch) + ':Pretrain error_rate: ' + str(1 - accurracy))
 
 '''
 
@@ -236,7 +236,7 @@ for epoch in range(1, 1+NUM_EPOCHS):
         # evaluate & report
         accurracy = eval_classifier(num_batches_e, eval_x, eval_y, BATCH_SIZE_EVAL, whitener, classifier, CUDA)
 
-        logger.info('ErrorEval=%.5f\n' % (1 - accurracy))
+        logger.info('Evaluation error_rate: %.5f\n' % (1 - accurracy))
     #'''
 
     logger.info('Train generator, inference and discriminator model...')

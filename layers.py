@@ -34,6 +34,7 @@ def conv_concat(x, y, num_cls):
 def mlp_concat(x, y, num_cls):
     dim_y = len(y.size())
     bs = y.size(0)
+    y = y.long()
 
     if dim_y == 1:
         label = torch.zeros((bs, num_cls))  # zero tensor
