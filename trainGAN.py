@@ -124,14 +124,14 @@ def train_discriminator(discriminator1, discriminator2, generator, inferentor, c
 
     # convert data ndarrays to pytorch tensor variables
     x_labelled = Variable(torch.from_numpy(x_labelled))
+    y_labelled = Variable(torch.from_numpy(y_labelled))
     unlabel_dis = Variable(torch.from_numpy(unlabel_dis))
     unlabel_dis_zca = Variable(torch.from_numpy(unlabel_dis_zca))
     unlabel_inf = Variable(torch.from_numpy(unlabel_inf))
 
     if cuda:
-        x_labelled, unlabel_dis, \
-        unlabel_dis_zca, unlabel_inf = x_labelled.cuda(), unlabel_dis.cuda(), \
-                                       unlabel_dis_zca.cuda(), unlabel_inf.cuda()
+        x_labelled, y_labelled = x_labelled.cuda(), y_labelled.cuda()
+        unlabel_dis, unlabel_dis_zca, unlabel_inf = unlabel_dis.cuda(), unlabel_dis_zca.cuda(), unlabel_inf.cuda()
 
     # generate samples
     gen_out_x = generator(z=z_rand, y=sample_y)
@@ -141,11 +141,14 @@ def train_discriminator(discriminator1, discriminator2, generator, inferentor, c
     inf_z = inferentor(unlabel_inf)
 
     # classify
-    cla_out = classificator(unlabel_dis_zca)
+    cla_out = classificator(unlabel_dis_zca, cuda=cuda)
     cla_out_val, cla_out_idx = cla_out.max(dim=1)
 
     # concatenate inputs
     x_in = torch.cat([x_labelled, unlabel_dis, gen_out_x_m], dim=0)[:batch_size]
+
+    y_labelled = y_labelled.long()
+    y_real = y_real.long()
     y_in = torch.cat([y_labelled, cla_out_idx, y_real], dim=0)[:batch_size]
 
     # calculate probabilities by discriminators

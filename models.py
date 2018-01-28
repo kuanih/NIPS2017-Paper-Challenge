@@ -147,7 +147,6 @@ class ClassifierNet(nn.Module):
         return x
 
 
-
 # inference module
 class InferenceNet(nn.Module):
     def __init__(self, in_channels, n_z, weight_init=True):
@@ -167,7 +166,7 @@ class InferenceNet(nn.Module):
         self.inf31 = nn.Conv2d(in_channels=256, out_channels=512, kernel_size=4,
                                stride=2, padding=1)
         self.inf32 = nn.BatchNorm2d(512)
-        self.inf4 = nn.Linear(in_features=512, out_features=n_z)
+        self.inf4 = nn.Linear(in_features=512*2*2, out_features=n_z)
 
         if weight_init:
             # initialize weights for all conv and lin layers
@@ -180,6 +179,7 @@ class InferenceNet(nn.Module):
         x = F.leaky_relu(self.inf12(self.inf11(x)))
         x = F.leaky_relu(self.inf22(self.inf21(x)))
         x = F.leaky_relu(self.inf32(self.inf31(x)))
+        x = x.view(-1, 512*2*2)
         x = self.inf4(x)
 
         return x
