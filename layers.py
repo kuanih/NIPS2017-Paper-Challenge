@@ -10,13 +10,11 @@ def conv_concat(x, y, num_cls):
     bs = y.size(0)
 
     if dim_y == 1:
-        # y = T.extra_ops.to_one_hot(y, self.num_cls)
-        # maybe need somewhere to transform to variable
+
         label = torch.zeros((bs, num_cls))  # zero tensor
         if y.is_cuda:
             label = label.cuda()
-        # label = Variable(label) ??
-        y = label.scatter_(1, y.data, 1)  # set label to 1 at the indices specified by y --> 1-hot-encoding
+        y = label.scatter_(1, y.data.unsqueeze(1), 1)  # set label to 1 at the indices specified by y --> 1-hot-encoding
         dim_y = len(y.size())
 
     if dim_y == 2:
@@ -27,7 +25,9 @@ def conv_concat(x, y, num_cls):
     assert dim_y == 4, 'Dimension of y != 4'
 
     # T.concatenate([x, y*T.ones((x.shape[0], y.shape[1], x.shape[2], x.shape[3]))], axis=1)
-    y = y * Variable(torch.ones((x.size(0), y.size(1), x.size(2), x.size(3))))
+    y = y * torch.ones((x.size(0), y.size(1), x.size(2), x.size(3))).cuda()
+    y = Variable(y)
+
     return torch.cat([x, y], dim=1)
 
 
@@ -36,13 +36,11 @@ def mlp_concat(x, y, num_cls):
     bs = y.size(0)
 
     if dim_y == 1:
-        # y = T.extra_ops.to_one_hot(y, self.num_cls)
-        # maybe need somewhere to transform to variable
         label = torch.zeros((bs, num_cls))  # zero tensor
         if y.is_cuda:
             label = label.cuda()
-        # label = Variable(label) ??
-        y = label.scatter_(1, y.data, 1)  # set label to 1 at the indices specified by y --> 1-hot-encoding
+        # y = label.scatter_(1, y.data, 1)
+        y = label.scatter_(1, y.data.unsqueeze(1), 1)  # set label to 1 at the indices specified by y --> 1-hot-encoding
         dim_y = len(y.size())
 
     assert dim_y == 2, 'Dimension of y != 2'

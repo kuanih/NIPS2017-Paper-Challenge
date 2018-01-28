@@ -331,8 +331,10 @@ def train_classifier(x_labelled, y_labelled, x_unlabelled, num_batches_u, eval_e
         # calculate loss
         cla_cost_u = unsup_weight * losses['mse'](cla_out_y, target)
 
-        y_m = y_real
+        y_m = y_real.type(torch.LongTensor)
         z_m = z_real
+        if cuda:
+            y_m, z_m = y_m.cuda(), z_m.cuda()
         gen_out_x_m = generator(z=z_m, y=y_m)
         gen_out_x_m_zca = whitener.apply(gen_out_x_m)
 

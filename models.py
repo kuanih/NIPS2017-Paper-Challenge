@@ -27,13 +27,13 @@ class Generator(nn.Module):
         self.Relu = nn.ReLU()
         self.Tanh = nn.Tanh()
 
-        self.Deconv2D_0 = nn.ConvTranspose2d(in_channels=513, out_channels=256,
+        self.Deconv2D_0 = nn.ConvTranspose2d(in_channels=522, out_channels=256,
                                              kernel_size=5, stride=2, padding=2,
                                              output_padding=1, bias=False)
-        self.Deconv2D_1 = nn.ConvTranspose2d(in_channels=257, out_channels=128,
+        self.Deconv2D_1 = nn.ConvTranspose2d(in_channels=266, out_channels=128,
                                              kernel_size=5, stride=2, padding=2,
                                              output_padding=1, bias=False)
-        self.Deconv2D_2 = wn(nn.ConvTranspose2d(in_channels=129, out_channels=3,
+        self.Deconv2D_2 = wn(nn.ConvTranspose2d(in_channels=138, out_channels=3,
                                                 kernel_size=5, stride=2, padding=2,
                                                 output_padding=1, bias=False))
 
@@ -48,14 +48,14 @@ class Generator(nn.Module):
             # log network structure
             self.logger.info(self)
 
-    def forward(self, y, z):
-        x = mlp_concat(y, z, self.num_classes)
+    def forward(self, z, y):
+        x = mlp_concat(z, y, self.num_classes)
 
         x = self.Dense(x)
         x = self.Relu(x)
         x = self.BatchNorm1D(x)
 
-        x = x.resize(z.shape[0], 512, 4, 4)
+        x = x.resize(z.size(0), 512, 4, 4)
         x = conv_concat(x, y, self.num_classes)
 
         x = self.Deconv2D_0(x)                    # output shape (256,8,8) = 8192 * 2

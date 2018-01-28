@@ -2,7 +2,6 @@
 SGAN PyTroch implementation of << ... >>
 '''
 
-
 ### IMPORTS ###
 
 import torch
@@ -11,7 +10,6 @@ import torch.optim as optim
 import numpy as np
 import time
 import utils
-from sklearn.metrics import accuracy_score
 
 # initialize logger
 import logging.config
@@ -102,7 +100,7 @@ rng = np.random.RandomState(NP_SEED)
 ### INITS ###
 
 # GENRATOR
-generator = Generator(input_size=101, num_classes=NUM_CLASSES, dense_neurons=(4 * 4 * 512))
+generator = Generator(input_size=110, num_classes=NUM_CLASSES, dense_neurons=(4 * 4 * 512))
 
 # INFERENCE
 inference = InferenceNet(in_channels=IN_CHANNELS, n_z=N_Z)
@@ -196,7 +194,6 @@ for epoch in range(1, 1+NUM_EPOCHS):
         batch_l = 50
         batch_c = 140 - 10 * (epoch-500)/100
         batch_g = 10 + 10 * (epoch-500)/100
-
 
     # if current epoch is an evaluation epoch, train classifier and report results
     if epoch % EVAL_EPOCH == 0:
