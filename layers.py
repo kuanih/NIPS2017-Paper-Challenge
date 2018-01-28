@@ -67,7 +67,7 @@ def init_weights(model):
 
     elif type(model) in [nn.ConvTranspose2d, nn.Conv2d]:  # convolutional layers
         model.weight.data.normal_(mu, sigma)
-        if model.bias:
+        if model.bias is not None:
             model.bias.data.fill_(0)
         logger.debug('Weights initialized.')
 

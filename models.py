@@ -225,11 +225,11 @@ class DConvNet1(nn.Module):
                                   kernel_size=(3, 3), stride=(1, 1), padding=0, bias=False))
         # LReLU
 
-        self.globalPool = nn.AdaptiveAvgPool2d(output_size=[16, 16])
+        self.globalPool = nn.AdaptiveAvgPool1d(output_size=128)
 
         # MLPConcat
 
-        self.lin = nn.Linear(in_features=256,
+        self.lin = nn.Linear(in_features=128,
                              out_features=1)
         # smg
 
