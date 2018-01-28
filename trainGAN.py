@@ -3,7 +3,7 @@ Training routines for SGAN
 '''
 
 import torch.optim as optim
-from sklearn.metrics import accuracy_score
+from sklearn.metrics import precision_score
 import torch
 from torch.autograd import Variable
 import numpy as np
@@ -365,7 +365,8 @@ def eval_classifier(num_batches_e, eval_x, eval_y, batch_size, whitener, classif
 
         cla_out_y_eval = classifier(x_eval_zca, cuda=cuda)
 
-        accurracy_batch = accuracy_score(y_eval, cla_out_y_eval.cpu().data.numpy())
+        accurracy_batch = precision_score(y_eval, cla_out_y_eval.cpu().data.numpy(), labels=[0,1,2,3,4,5,6,7,8,9],
+                                          average="macro")
         accurracy.append(accurracy_batch)
 
     return np.mean(accurracy)
