@@ -102,7 +102,7 @@ rng = np.random.RandomState(NP_SEED)
 ### INITS ###
 
 # GENRATOR
-generator = Generator(input_size=101, num_classes=NUM_CLASSES, dense_neurons=8192, num_output_features=3072)
+generator = Generator(input_size=101, num_classes=NUM_CLASSES, dense_neurons=(4 * 4 * 512))
 
 # INFERENCE
 inference = InferenceNet(in_channels=IN_CHANNELS, n_z=N_Z)
