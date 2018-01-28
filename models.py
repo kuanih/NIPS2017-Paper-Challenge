@@ -148,6 +148,7 @@ class ClassifierNet(nn.Module):
 
 
 # inference module
+# inference module
 class InferenceNet(nn.Module):
     def __init__(self, in_channels, n_z, weight_init=True):
         super(InferenceNet, self).__init__()
@@ -208,42 +209,42 @@ class DConvNet1(nn.Module):
         # drop
         # ConvConcat
 
-        self.conv1 = wn(nn.Conv2d(in_channels=channel_in, out_channels=32,
+        self.conv1 = wn(nn.Conv2d(in_channels=channel_in + num_classes, out_channels=32,
                                   kernel_size=(3, 3), stride=(1, 1), padding=1, bias=False))
         # LReLU
         # ConvConcat
 
-        self.conv2 = wn(nn.Conv2d(in_channels=32, out_channels=32,
+        self.conv2 = wn(nn.Conv2d(in_channels=32 + num_classes, out_channels=32,
                                   kernel_size=(3, 3), stride=2, padding=1, bias=False))
         # LReLU
         # drop
         # ConvConcat
 
-        self.conv3 = wn(nn.Conv2d(in_channels=32, out_channels=64,
+        self.conv3 = wn(nn.Conv2d(in_channels=32 + num_classes, out_channels=64,
                                   kernel_size=(3, 3), stride=(1, 1), padding=1, bias=False))
         # LReLU
         # ConvConcat
 
-        self.conv4 = wn(nn.Conv2d(in_channels=64, out_channels=64,
+        self.conv4 = wn(nn.Conv2d(in_channels=64 + num_classes, out_channels=64,
                                   kernel_size=(3, 3), stride=2, padding=1, bias=False))
         # LReLU
         # drop
         # ConvConcat
 
-        self.conv5 = wn(nn.Conv2d(in_channels=64, out_channels=128,
+        self.conv5 = wn(nn.Conv2d(in_channels=64 + num_classes, out_channels=128,
                                   kernel_size=(3, 3), stride=(1, 1), padding=0, bias=False))
         # LReLU
         # ConvConcat
 
-        self.conv6 = wn(nn.Conv2d(in_channels=128, out_channels=128,
+        self.conv6 = wn(nn.Conv2d(in_channels=128 + num_classes, out_channels=128,
                                   kernel_size=(3, 3), stride=(1, 1), padding=0, bias=False))
         # LReLU
 
-        self.globalPool = nn.AdaptiveAvgPool1d(output_size=128)
+        self.globalPool = nn.AdaptiveAvgPool2d(output_size=4)
 
         # MLPConcat
 
-        self.lin = nn.Linear(in_features=128,
+        self.lin = nn.Linear(in_features=128 * 4 * 4 + num_classes,
                              out_features=1)
         # smg
 
@@ -258,29 +259,31 @@ class DConvNet1(nn.Module):
         # y: (bs, 1)
 
         x0 = self.drop(x)
-        x0 = self.conv_concat(x0, y, self.num_classes)
+        x0 = conv_concat(x0, y, self.num_classes)
 
         x1 = self.LReLU(self.conv1(x0))
-        x1 = self.conv_concat(x1, y, self.num_classes)
+        x1 = conv_concat(x1, y, self.num_classes)
 
         x2 = self.LReLU(self.conv2(x1))
         x2 = self.drop(x2)
-        x2 = self.conv_concat(x2, y, self.num_classes)
+        x2 = conv_concat(x2, y, self.num_classes)
 
         x3 = self.LReLU(self.conv3(x2))
-        x3 = self.conv_concat(x3, y, self.num_classes)
+        x3 = conv_concat(x3, y, self.num_classes)
 
         x4 = self.LReLU(self.conv4(x3))
         x4 = self.drop(x4)
-        x4 = self.conv_concat(x4, y, self.num_classes)
+        x4 = conv_concat(x4, y, self.num_classes)
 
         x5 = self.LReLU(self.conv5(x4))
-        x5 = self.conv_concat(x5, y, self.num_classes)
+        x5 = conv_concat(x5, y, self.num_classes)
 
         x6 = self.LReLU(self.conv6(x5))
 
         x_pool = self.globalPool(x6)
-        x_out = self.mlp_concat(x_pool, y)
+
+        x_pool = x_pool.view(-1, 128 * 4 * 4)
+        x_out = mlp_concat(x_pool, y, self.num_classes)
 
         out = self.sgmd(self.lin(x_out))
 
