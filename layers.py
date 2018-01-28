@@ -8,6 +8,7 @@ import logging
 def conv_concat(x, y, num_cls):
     dim_y = len(y.size())
     bs = y.size(0)
+    y = y.long()
 
     if dim_y == 1:
 
@@ -23,6 +24,8 @@ def conv_concat(x, y, num_cls):
         dim_y = len(y.size())
 
     assert dim_y == 4, 'Dimension of y != 4'
+    #typ = x.data.type()
+    #y = y.type(typ)
 
     # T.concatenate([x, y*T.ones((x.shape[0], y.shape[1], x.shape[2], x.shape[3]))], axis=1)
     y = y * torch.ones((x.size(0), y.size(1), x.size(2), x.size(3))).cuda()
@@ -36,6 +39,7 @@ def mlp_concat(x, y, num_cls):
     bs = y.size(0)
     y = y.long()
 
+
     if dim_y == 1:
         label = torch.zeros((bs, num_cls))  # zero tensor
         if y.is_cuda:
@@ -45,6 +49,9 @@ def mlp_concat(x, y, num_cls):
         dim_y = len(y.size())
 
     assert dim_y == 2, 'Dimension of y != 2'
+    # type cast for concatination
+    typ = x.data.type()
+    y = y.type(typ)
 
     return torch.cat([x, y], dim=1)
 

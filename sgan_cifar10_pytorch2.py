@@ -196,7 +196,7 @@ for epoch in range(1, 1+NUM_EPOCHS):
         batch_c = 140 - 10 * (epoch-500)/100
         batch_g = 10 + 10 * (epoch-500)/100
 
-    #'''
+    '''
     # if current epoch is an evaluation epoch, train classifier and report results
     if epoch % EVAL_EPOCH == 0:
 
@@ -237,7 +237,7 @@ for epoch in range(1, 1+NUM_EPOCHS):
         accurracy = eval_classifier(num_batches_e, eval_x, eval_y, BATCH_SIZE_EVAL, whitener, classifier, CUDA)
 
         logger.info('Evaluation error_rate: %.5f\n' % (1 - accurracy))
-    #'''
+    '''
 
     logger.info('Train generator, inference and discriminator model...')
     # train GAN model

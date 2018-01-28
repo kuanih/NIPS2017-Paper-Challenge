@@ -134,8 +134,8 @@ def train_discriminator(discriminator1, discriminator2, generator, inferentor, c
                                        unlabel_dis_zca.cuda(), unlabel_inf.cuda()
 
     # generate samples
-    gen_out_x = generator(sample_y, z_rand)
-    gen_out_x_m = generator(y_real, z_real)
+    gen_out_x = generator(z=z_rand, y=sample_y)
+    gen_out_x_m = generator(z=z_real, y=y_real)
 
     # compute inference
     inf_z = inferentor(unlabel_inf)
