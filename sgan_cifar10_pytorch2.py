@@ -188,6 +188,7 @@ for epoch in range(1, 1+NUM_EPOCHS):
         batch_c = 140 - 10 * (epoch-500)/100
         batch_g = 10 + 10 * (epoch-500)/100
 
+
     # if current epoch is an evaluation epoch, train classifier and report results
     if epoch % EVAL_EPOCH == 0:
 
@@ -235,6 +236,7 @@ for epoch in range(1, 1+NUM_EPOCHS):
 
         accurracy = np.mean(accurracy)
         logger.info('ErrorEval=%.5f\n' % (1 - accurracy))
+
 
     # train GAN model
     for i in range(num_batches_u):

@@ -75,12 +75,12 @@ class Generator(nn.Module):
 
 
 # classifier module
-class Classifier_Net(nn.Module):
-    def __init__(self, weight_init=True):
-        super(Classifier_Net, self).__init__()
+class ClassifierNet(nn.Module):
+    def __init__(self, in_channels, weight_init=True):
+        super(ClassifierNet, self).__init__()
         self.logger = logging.getLogger(__name__)  # initialize logger
         self.gaussian = Gaussian_NoiseLayer()
-        self.conv1a = nn.Conv2d(in_channels=3, out_channels=128, kernel_size=3,
+        self.conv1a = nn.Conv2d(in_channels=in_channels, out_channels=128, kernel_size=3,
                                 stride=1, padding=1)
         self.convWN1 = MeanOnlyBatchNorm([1, 128, 32, 32])
         self.conv1b = nn.Conv2d(in_channels=128, out_channels=128, kernel_size=3,

@@ -387,7 +387,7 @@ def train_gan(discriminator1, discriminator2, generator, inferentor, classifier,
             sample_y = torch.from_numpy(np.int32(np.repeat(np.arange(num_classes), int(batch_size/num_classes))))
             y_real = torch.from_numpy(np.int32(np.random.randint(10, size=batch_g)))
             z_real = torch.from_numpy(np.random.uniform(size=(batch_g, n_z)).astype(np.float32))
-            z_rand = torch.rand(sizes=(batch_size, n_z))
+            z_rand = torch.rand((batch_size*n_z)).view(batch_size, n_z)
 
             sample_y, y_real, z_real, z_rand = Variable(sample_y), Variable(y_real), Variable(z_real), Variable(z_rand)
             if cuda:
