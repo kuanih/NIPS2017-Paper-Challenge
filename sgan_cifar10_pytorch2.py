@@ -162,7 +162,7 @@ for epoch in range(1, 1+NUM_EPOCHS):
 
     # OPTIMIZERS
     optimizers = {
-        'dis': optim.Adam(discriminator1.parameters() + discriminator2.parameters(), betas=(B1, 0.999), lr=lr),
+        'dis': optim.Adam(list(discriminator1.parameters()) + list(discriminator2.parameters()), betas=(B1, 0.999), lr=lr),
         'gen': optim.Adam(generator.parameters(), betas=(B1, 0.999), lr=lr),
         'inf': optim.Adam(inference.parameters(), betas=(B1, 0.999), lr=lr)
     }
@@ -219,7 +219,8 @@ for epoch in range(1, 1+NUM_EPOCHS):
                                       w_g=w_g,
                                       cla_lr=lr_cla,
                                       rng=rng,
-                                      b1_c=b1_c)
+                                      b1_c=b1_c,
+                                      cuda=CUDA)
 
         # evaluate & report
         accurracy = []
