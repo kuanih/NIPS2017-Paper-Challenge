@@ -24,9 +24,9 @@ class Generator(nn.Module):
         self.Deconv2D_1 = nn.ConvTranspose2d(in_channels=257, out_channels=128,
                                              kernel_size=5, stride=2, padding=2,
                                              output_padding=1, bias=False)
-        self.Deconv2D_2 = nn.ConvTranspose2d(in_channels=129, out_channels=3,
-                                             kernel_size=5, stride=2, padding=2,
-                                             output_padding=1, bias=False)
+        self.Deconv2D_2 = wn(nn.ConvTranspose2d(in_channels=129, out_channels=3,
+                                                kernel_size=5, stride=2, padding=2,
+                                                output_padding=1, bias=False))
 
         self.BatchNorm1D = nn.BatchNorm1d(dense_neurons)
 
@@ -57,6 +57,4 @@ class Generator(nn.Module):
         x6 = self.Deconv2D_2(x6)                    # output shape (3, 32, 32) = 3072
         x6 = self.Tanh(x6)
 
-        x7 = x6 #.normalize()
-
-        return x7
+        return x6
