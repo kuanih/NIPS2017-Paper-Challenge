@@ -44,7 +44,7 @@ class ZCA(object):
             dims = len(x.size())
             subs = Variable(torch.from_numpy(self.mean), requires_grad=False)
             mult = Variable(self.ZCA_mat, requires_grad=False)
-            if x.cuda:
+            if x.is_cuda:
                 subs, mult = subs.cuda(), mult.cuda()
 
             if dims == 1:

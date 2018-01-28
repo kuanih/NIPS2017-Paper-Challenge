@@ -152,10 +152,10 @@ def train_discriminator(discriminator1, discriminator2, generator, inferentor, c
     y_in = torch.cat([y_labelled, cla_out_idx, y_real], dim=0)[:batch_size]
 
     # calculate probabilities by discriminators
-    dis1_out_p = discriminator1(x_in, y_in)
-    dis1_out_pg = discriminator1(gen_out_x, sample_y)
+    dis1_out_p = discriminator1(x=x_in, y=y_in)
+    dis1_out_pg = discriminator1(x=gen_out_x, y=sample_y)
 
-    dis2_out_p = discriminator2(unlabel_inf, inf_z)
+    dis2_out_p = discriminator2(z=inf_z, x=unlabel_inf)
     dis2_out_pg = discriminator2(z=z_rand, x=gen_out_x)
 
     # create discriminator labels

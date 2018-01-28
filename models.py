@@ -333,7 +333,7 @@ class DConvNet2(nn.Module):
         # -------------------------------------
 
         # concat x & z -->
-        self.lin_f0 = nn.Linear(in_features=512,
+        self.lin_f0 = nn.Linear(in_features=8704,
                                 out_features=1024)
         # LReLU
 
@@ -361,7 +361,7 @@ class DConvNet2(nn.Module):
         x_out = self.bn2(x_out)
 
         dims = x_out.size()
-        fusion = torch.cat(x_out.view(dims[0], dims[1], -1).squeeze(-1), z_out)
+        fusion = torch.cat([x_out.view(dims[0], -1).squeeze(-1).squeeze(-1), z_out], dim=1)
 
         f_out = self.LReLU(self.lin_f0(fusion))
         out = self.sgmd(self.lin_f1(f_out))
