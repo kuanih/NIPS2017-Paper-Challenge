@@ -34,23 +34,34 @@ def pretrain_classifier(x_labelled, x_unlabelled, y_labelled, eval_x, eval_y, nu
         x_l = x_labelled[i_c * batch_size:(i_c + 1) * batch_size]
         x_l_zca = whitener.apply(x_l)
         y = y_labelled[i_c * batch_size:(i_c + 1) * batch_size]
+        y = y.type(torch.LongTensor)
 
+        # classify input
         cla_out_y_l = classifier(x_l_zca)
+        # calculate loss
         cla_cost_l = losses['ce'](cla_out_y_l, y)
 
-        x_u_rep = x_unlabelled[permutation_unlabelled[i * batch_size:(i + 1) * batch_size]]
+        batch_slicer = torch.from_numpy(permutation_unlabelled[i * batch_size:(i + 1) * batch_size]).type(torch.LongTensor)
+        x_u_rep = x_unlabelled[batch_slicer]
         x_u_rep_zca = whitener.apply(x_u_rep)
+        # classify input
         cla_out_y_rep = classifier(x_u_rep_zca)
+        target = cla_out_y_rep.detach()
+        del cla_out_y_rep
 
-        x_u = x_unlabelled[permutation_unlabelled[i * batch_size:(i + 1) * batch_size]]
+        x_u = x_unlabelled[batch_slicer]
         x_u_zca = whitener.apply(x_u)
+        # classify input
         cla_out_y = classifier(x_u_zca)
-        cla_cost_u = 100 * losses['mse'](cla_out_y, cla_out_y_rep)
 
+        # calculate loss
+        cla_cost_u = 100 * losses['mse'](cla_out_y, target)
+
+        # sum losses
         pretrain_cost = cla_cost_l + cla_cost_u
 
+        # run optimization and update weights
         cla_optimizer = optim.Adam(classifier.parameters(), betas=(0.9, 0.999), lr=3e-3)  # they implement robust adam
-
         pretrain_cost.backward()
         cla_optimizer.step()
 

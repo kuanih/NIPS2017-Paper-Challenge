@@ -16,7 +16,7 @@ def conv_concat(x, y, num_cls):
         if y.is_cuda:
             label = label.cuda()
         # label = Variable(label) ??
-        y = label.scatter(1, y.data, 1)  # set label to 1 at the indices specified by y --> 1-hot-encoding
+        y = label.scatter_(1, y.data, 1)  # set label to 1 at the indices specified by y --> 1-hot-encoding
         dim_y = len(y.size())
 
     if dim_y == 2:
@@ -42,7 +42,7 @@ def mlp_concat(x, y, num_cls):
         if y.is_cuda:
             label = label.cuda()
         # label = Variable(label) ??
-        y = label.scatter(1, y.data, 1)  # set label to 1 at the indices specified by y --> 1-hot-encoding
+        y = label.scatter_(1, y.data, 1)  # set label to 1 at the indices specified by y --> 1-hot-encoding
         dim_y = len(y.size())
 
     assert dim_y == 2, 'Dimension of y != 2'
