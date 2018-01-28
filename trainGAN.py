@@ -341,7 +341,7 @@ def train_classifier(x_labelled, y_labelled, x_unlabelled, num_batches_u, eval_e
         # classify input
         cla_out_y_m = classifier(gen_out_x_m_zca, cuda=cuda)
         # calculate loss
-        cla_cost_g = losses['ce'](cla_out_y_m, y_m) * w_g
+        cla_cost_g = losses['ce'](cla_out_y_m, y_m) * float(w_g)
 
         # sum individual losses for backward
         cla_cost = cla_cost_l + cla_cost_u + cla_cost_g
@@ -360,7 +360,7 @@ def train_classifier(x_labelled, y_labelled, x_unlabelled, num_batches_u, eval_e
         if i_u == (num_batches_u - 1):
             p_u = rng.permutation(x_unlabelled.shape[0]).astype('int32')
 
-        running_cla_cost += cla_cost.cpu().numpy().mean()
+        running_cla_cost += cla_cost.cpu().data.numpy().mean()
 
     return running_cla_cost/epochs
 
@@ -378,7 +378,10 @@ def eval_classifier(num_batches_e, eval_x, eval_y, batch_size, whitener, classif
 
         cla_out_y_eval = classifier(x_eval_zca, cuda=cuda)
 
-        accurracy_batch = accuracy_score(y_eval, cla_out_y_eval.cpu().data.numpy())
+        pred = cla_out_y_eval.cpu().data.numpy()
+        pred = np.argmax(pred, axis=1)
+
+        accurracy_batch = accuracy_score(y_eval, pred)
         accurracy.append(accurracy_batch)
 
     return np.mean(accurracy)

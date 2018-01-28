@@ -46,7 +46,7 @@ class Generator(nn.Module):
             # initialize weights for all conv and lin layers
             self.apply(init_weights)
             # log network structure
-            self.logger.info(self)
+            self.logger.debug(self)
 
     def forward(self, z, y):
         x = mlp_concat(z, y, self.num_classes)
@@ -116,12 +116,14 @@ class ClassifierNet(nn.Module):
         self.conv_globalpool = nn.AdaptiveAvgPool2d(6)
 
         self.dense = nn.Linear(in_features=128 * 6 * 6, out_features=10)
+        self.smx = nn.Softmax()
+        #self.WNfinal = MeanOnlyBatchNorm([1, 128, 6, 6])
 
         if weight_init:
             # initialize weights for all conv and lin layers
             self.apply(init_weights)
             # log network structure
-            self.logger.info(self)
+            self.logger.debug(self)
 
     def forward(self, x, cuda):
         x = self.gaussian(x, cuda=cuda)
@@ -140,7 +142,8 @@ class ClassifierNet(nn.Module):
         x = self.convWN3c(self.conv_relu(self.conv3c(x)))
         x = self.conv_globalpool(x)
         x = x.view(-1, 128 * 6 * 6)
-        x = self.dense(x)
+        #x = self.WNfinal(self.smx(self.dense(x)))
+        x = self.smx(self.dense(x))
         return x
 
 
@@ -170,7 +173,7 @@ class InferenceNet(nn.Module):
             # initialize weights for all conv and lin layers
             self.apply(init_weights)
             # log network structure
-            self.logger.info(self)
+            self.logger.debug(self)
 
     def forward(self, x):
         x = F.leaky_relu(self.inf03(self.inf02(x)))
@@ -248,7 +251,7 @@ class DConvNet1(nn.Module):
             # initialize weights for all conv and lin layers
             self.apply(init_weights)
             # log network structure
-            self.logger.info(self)
+            self.logger.debug(self)
 
     def forward(self, x, y):
         # x: (bs, channel_in, dim_input)
@@ -342,7 +345,7 @@ class DConvNet2(nn.Module):
             # initialize weights for all conv and lin layers
             self.apply(init_weights)
             # log network structure
-            self.logger.info(self)
+            self.logger.debug(self)
 
     def forward(self, z, x):
         # x: (bs, channel_in, dim_input)
