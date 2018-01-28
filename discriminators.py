@@ -89,24 +89,24 @@ class DConvNet1(nn.Module):
         # y: (bs, 1)
         
         x0 = self.drop(x)
-        x0 = self.conv_concat(x0, y, self.num_classes)
+        x0 = conv_concat(x0, y, self.num_classes)
         
         x1 = self.LReLU(self.conv1(x0))
-        x1 = self.conv_concat(x1, y, self.num_classes)
+        x1 = conv_concat(x1, y, self.num_classes)
         
         x2 = self.LReLU(self.conv2(x1))
         x2 = self.drop(x2)
-        x2 = self.conv_concat(x2, y, self.num_classes)
+        x2 = conv_concat(x2, y, self.num_classes)
         
         x3 = self.LReLU(self.conv3(x2))
-        x3 = self.conv_concat(x3, y, self.num_classes)
+        x3 = conv_concat(x3, y, self.num_classes)
 
         x4 = self.LReLU(self.conv4(x3))
         x4 = self.drop(x4)
-        x4 = self.conv_concat(x4, y, self.num_classes)
+        x4 = conv_concat(x4, y, self.num_classes)
 
         x5 = self.LReLU(self.conv5(x4))
-        x5 = self.conv_concat(x5, y, self.num_classes)
+        x5 = conv_concat(x5, y, self.num_classes)
 
         x6 = self.LReLU(self.conv6(x5))
 
@@ -202,6 +202,11 @@ class DConvNet2(nn.Module):
         return out
 
 
+dis0 = DConvNet1(3, 10, weight_init=False)
+a = Variable(torch.randn(2, 3, 32, 32))
+b = Variable(torch.randn(2, 1))
+
+dis0(a, b)
 
 
 ### objectives ###
