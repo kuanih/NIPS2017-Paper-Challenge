@@ -35,24 +35,28 @@ def pretrain_classifier(x_labelled, x_unlabelled, y_labelled, eval_x, eval_y, nu
         x_l_zca = whitener.apply(x_l)
         y = y_labelled[i_c * batch_size:(i_c + 1) * batch_size]
         y = y.type(torch.LongTensor)
+        if cuda:
+            y = y.cuda()
 
         # classify input
-        cla_out_y_l = classifier(x_l_zca)
+        cla_out_y_l = classifier(x_l_zca, cuda=cuda)
         # calculate loss
         cla_cost_l = losses['ce'](cla_out_y_l, y)
 
         batch_slicer = torch.from_numpy(permutation_unlabelled[i * batch_size:(i + 1) * batch_size]).type(torch.LongTensor)
+        if cuda:
+            batch_slicer = batch_slicer.cuda()
         x_u_rep = x_unlabelled[batch_slicer]
         x_u_rep_zca = whitener.apply(x_u_rep)
         # classify input
-        cla_out_y_rep = classifier(x_u_rep_zca)
+        cla_out_y_rep = classifier(x_u_rep_zca, cuda=cuda)
         target = cla_out_y_rep.detach()
         del cla_out_y_rep
 
         x_u = x_unlabelled[batch_slicer]
         x_u_zca = whitener.apply(x_u)
         # classify input
-        cla_out_y = classifier(x_u_zca)
+        cla_out_y = classifier(x_u_zca, cuda=cuda)
 
         # calculate loss
         cla_cost_u = 100 * losses['mse'](cla_out_y, target)
@@ -348,6 +352,26 @@ def train_classifier(x_labelled, y_labelled, x_unlabelled, num_batches_u, eval_e
     return running_cla_cost/epochs
 
 
+def eval_classifier(num_batches_e, eval_x, eval_y, batch_size, whitener, classifier, cuda):
+
+    accurracy = []
+    for i in range(num_batches_e):
+        x_eval = eval_x[i*batch_size:(i+1)*batch_size]
+        y_eval = eval_y[i*batch_size:(i+1)*batch_size]
+        x_eval_zca = whitener.apply(x_eval)
+        x_eval_zca = Variable(torch.from_numpy(x_eval_zca))
+        if cuda:
+            x_eval_zca = x_eval_zca.cuda()
+
+        cla_out_y_eval = classifier(x_eval_zca, cuda=cuda)
+
+        accurracy_batch = accuracy_score(y_eval, cla_out_y_eval.cpu().data.numpy())
+        accurracy.append(accurracy_batch)
+
+    return np.mean(accurracy)
+
+
+#
 def train_gan(discriminator1, discriminator2, generator, inferentor, classifier, whitener,
               x_labelled, x_unlabelled, y_labelled, p_u_d, p_u_i,
               num_classes, batch_size, num_batches_u,

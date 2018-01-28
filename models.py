@@ -78,8 +78,11 @@ class Generator(nn.Module):
 class ClassifierNet(nn.Module):
     def __init__(self, in_channels, weight_init=True):
         super(ClassifierNet, self).__init__()
+
         self.logger = logging.getLogger(__name__)  # initialize logger
+
         self.gaussian = Gaussian_NoiseLayer()
+
         self.conv1a = nn.Conv2d(in_channels=in_channels, out_channels=128, kernel_size=3,
                                 stride=1, padding=1)
         self.convWN1 = MeanOnlyBatchNorm([1, 128, 32, 32])
@@ -108,7 +111,9 @@ class ClassifierNet(nn.Module):
         self.conv3c = nn.Conv2d(in_channels=256, out_channels=128, kernel_size=1,
                                 stride=1, padding=0)
         self.convWN3c = MeanOnlyBatchNorm([1, 128, 6, 6])
+
         self.conv_globalpool = nn.AdaptiveAvgPool2d(6)
+
         self.dense = nn.Linear(in_features=128 * 6 * 6, out_features=10)
 
         if weight_init:
@@ -117,8 +122,8 @@ class ClassifierNet(nn.Module):
             # log network structure
             self.logger.info(self)
 
-    def forward(self, x):
-        x = self.gaussian(x, cuda=False)
+    def forward(self, x, cuda):
+        x = self.gaussian(x, cuda=cuda)
         x = self.convWN1(self.conv_relu(self.conv1a(x)))
         x = self.convWN1(self.conv_relu(self.conv1b(x)))
         x = self.convWN1(self.conv_relu(self.conv1c(x)))

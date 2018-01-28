@@ -42,12 +42,15 @@ class ZCA(object):
         elif isinstance(x, torch.autograd.Variable):
             s = x.size()
             dims = len(x.size())
+            subs = Variable(torch.from_numpy(self.mean), requires_grad=False)
+            mult = Variable(self.ZCA_mat, requires_grad=False)
+            if x.cuda:
+                subs, mult = subs.cuda(), mult.cuda()
+
             if dims == 1:
-                out = torch.dot(x - Variable(torch.from_numpy(self.mean), requires_grad=False),
-                                Variable(self.ZCA_mat, requires_grad=False)).view(s)
+                out = torch.dot(x - subs, mult).view(s)
             else:
-                out = torch.mm(x.view(s[0], -1) - Variable(torch.from_numpy(self.mean).unsqueeze(0), requires_grad=False),
-                               Variable(self.ZCA_mat, requires_grad=False)).view(s)
+                out = torch.mm(x.view(s[0], -1) - subs.unsqueeze(0), mult).view(s)
             return out
         else:
             raise NotImplementedError("Whitening only implemented for np arrays or torch.Tensors")
