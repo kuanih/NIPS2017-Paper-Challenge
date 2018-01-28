@@ -32,18 +32,21 @@ class ZCA(object):
             s = x.shape
             return np.dot(x.reshape((s[0], np.prod(s[1:]))) - self.mean, self.ZCA_mat.numpy()).reshape(s)
         elif isinstance(x, torch.Tensor):
-            s = len(x.size())
-            if s == 1:
+            s = x.size()
+            dims = len(x.size())
+            if dims == 1:
                 out = torch.dot(x - self.mean, self.ZCA_mat).view(s)
             else:
-                out = torch.mm(x.view(x.numel()) - torch.from_numpy(self.mean).unsqueeze(0), self.ZCA_mat).view(s)
+                out = torch.mm(x.view(s[0], -1) - torch.from_numpy(self.mean).unsqueeze(0), self.ZCA_mat).view(s)
             return out
         elif isinstance(x, torch.autograd.Variable):
-            s = len(x.size())
-            if s == 1:
-                out = torch.dot(x - self.mean, Variable(self.ZCA_mat, requires_grad=False)).view(s)
+            s = x.size()
+            dims = len(x.size())
+            if dims == 1:
+                out = torch.dot(x - Variable(torch.from_numpy(self.mean), requires_grad=False),
+                                Variable(self.ZCA_mat, requires_grad=False)).view(s)
             else:
-                out = torch.mm(x.view(x.numel()) - torch.from_numpy(self.mean).unsqueeze(0),
+                out = torch.mm(x.view(s[0], -1) - Variable(torch.from_numpy(self.mean).unsqueeze(0), requires_grad=False),
                                Variable(self.ZCA_mat, requires_grad=False)).view(s)
             return out
         else:

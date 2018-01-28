@@ -89,9 +89,9 @@ x_labelled = np.concatenate(x_labelled, axis=0)
 y_labelled = np.concatenate(y_labelled, axis=0)
 del train_x
 
-num_batches_l = x_labelled.shape[0] / BATCH_SIZE
-num_batches_u = x_unlabelled.shape[0] / BATCH_SIZE
-num_batches_e = eval_x.shape[0] / BATCH_SIZE_EVAL
+num_batches_l = int(x_labelled.shape[0] // BATCH_SIZE)
+num_batches_u = int(x_unlabelled.shape[0] // BATCH_SIZE)
+num_batches_e = int(eval_x.shape[0] // BATCH_SIZE_EVAL)
 rng = np.random.RandomState(NP_SEED)
 
 #########################################################################################################

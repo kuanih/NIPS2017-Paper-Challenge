@@ -115,7 +115,7 @@ class ClassifierNet(nn.Module):
             self.logger.info(self)
 
     def forward(self, x):
-        x = GaussianNoiseLayer(x.shape)
+        x = GaussianNoiseLayer(x.size())
         x = self.convWN(self.conv_relu(self.conv1a(x)))
         x = self.convWN(self.conv_relu(self.conv1b(x)))
         x = self.convWN(self.conv_relu(self.conv1c(x)))

@@ -34,6 +34,7 @@ def pretrain_classifier(x_labelled, x_unlabelled, y_labelled, eval_x, eval_y, nu
         x_l = x_labelled[i_c * batch_size:(i_c + 1) * batch_size]
         x_l_zca = whitener.apply(x_l)
         y = y_labelled[i_c * batch_size:(i_c + 1) * batch_size]
+
         cla_out_y_l = classifier(x_l_zca)
         cla_cost_l = losses['ce'](cla_out_y_l, y)
 
