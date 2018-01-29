@@ -4,6 +4,7 @@ import sys
 import tarfile
 from six.moves import urllib
 import numpy as np
+import torch
 
 
 def maybe_download_and_extract(data_dir, url='http://www.cs.toronto.edu/~kriz/cifar-10-python.tar.gz'):
@@ -47,3 +48,8 @@ def load(data_dir, subset='train'):
         return testx, testy
     else:
         raise NotImplementedError('subset should be either train or test')
+
+
+def save_checkpoint(model, model_name, output_directory, epoch):
+    model_out_path = output_directory + model_name + "_epoch_{}.pth".format(epoch)
+    torch.save(model, model_out_path)

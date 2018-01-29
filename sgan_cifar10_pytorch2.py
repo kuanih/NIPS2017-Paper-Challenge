@@ -62,8 +62,10 @@ ANNEAL_EVERY_EPOCH = 1
 ANNEAL_FACTOR = 0.995
 ANNEAL_FACTOR_CLA = 0.99
 
+# results and checkpoints
 path_out = "./results"
-
+checkpoint_directory = "./checkpoints/"
+EPOCH_SAVE_CHECKPOINTS = 25
 
 ### DATA ###
 logger.info('Loading data...')
@@ -274,7 +276,9 @@ for epoch in range(1, 1+NUM_EPOCHS):
            str(gan_losses['gen']) + "\nInfLosses: " + str(gan_losses['inf']) + "\nClaLosses: " + str(cla_losses)
     logger.info(line)
 
-
-
-
-
+    # save checkpoints
+    if epoch % EPOCH_SAVE_CHECKPOINTS == 0 or epoch == NUM_EPOCHS:
+        utils.save_checkpoint(generator, "generator", checkpoint_directory, epoch)
+        utils.save_checkpoint(discriminator1, "discriminator1", checkpoint_directory, epoch)
+        utils.save_checkpoint(discriminator2, "discriminator2", checkpoint_directory, epoch)
+        utils.save_checkpoint(inference, "inferencer", checkpoint_directory, epoch)
