@@ -185,7 +185,7 @@ def train_discriminator(discriminator1, discriminator2, generator, inferentor, c
     total_cost.backward()
     optimizer.step()
 
-    return total_cost.cpu().numpy().mean()
+    return total_cost.cpu().data.numpy().mean()
 
 
 def train_inferentor(x_unlabelled, sample_y, generator, z_rand, discriminator2, inferentor,
@@ -202,19 +202,23 @@ def train_inferentor(x_unlabelled, sample_y, generator, z_rand, discriminator2, 
     inf_z = inferentor(x_u_i)
     inf_z_g = inferentor(gen_out_x)
     disxz_out_p = discriminator2(z=inf_z, x=x_u_i)
-    rz = mse(gen_out_x, inf_z_g)
+    target = inf_z_g.detach()
+    rz = mse(z_rand, target)
 
-    inf_cost_p_i = bce(disxz_out_p, torch.zeros(disxz_out_p.shape))
+    target = Variable(torch.zeros(disxz_out_p.size()))
+    if cuda:
+        target = target.cuda()
+    inf_cost_p_i = bce(disxz_out_p, target)
     inf_cost = inf_cost_p_i + rz
 
     optimizer.zero_grad()
     inf_cost.backward()
     optimizer.step()
-    return inf_cost.cpu().numpy().mean()
+    return inf_cost.cpu().data.numpy().mean()
 
 
 def train_generator(whitener, optimizer, BCE_loss, MSE_loss, cross_entropy_loss,
-                    discriminator1, discriminator2, inferentor, generator, classifier, sample_y, z_rand):
+                    discriminator1, discriminator2, inferentor, generator, classifier, sample_y, z_rand, cuda):
     '''
     Args:
         whitener(ZCA):      ZCA instance
@@ -238,14 +242,19 @@ def train_generator(whitener, optimizer, BCE_loss, MSE_loss, cross_entropy_loss,
     gen_out_x = generator(z_rand, sample_y)
     inf_z_g = inferentor(gen_out_x)
     gen_out_x_zca = whitener.apply(gen_out_x)
-    cla_out_y_g = classifier(gen_out_x_zca)
+    cla_out_y_g = classifier(gen_out_x_zca, cuda=cuda)
     rz = MSE_loss(inf_z_g, z_rand)
+    sample_y = sample_y.long()
     ry = cross_entropy_loss(cla_out_y_g, sample_y)
     dis_out_p_g = discriminator1(x=gen_out_x, y=sample_y)
     disxz_out_p_g = discriminator2(z=z_rand, x=gen_out_x)
 
-    gen_cost_p_g_1 = BCE_loss(dis_out_p_g, torch.ones(dis_out_p_g.shape))
-    gen_cost_p_g_2 = BCE_loss(disxz_out_p_g, torch.ones(disxz_out_p_g.shape))
+    target1, target2 = Variable(torch.ones(dis_out_p_g.size())), Variable(torch.ones(disxz_out_p_g.size()))
+    if cuda:
+        target1, target2 = target1.cuda(), target2.cuda()
+
+    gen_cost_p_g_1 = BCE_loss(dis_out_p_g, target1)
+    gen_cost_p_g_2 = BCE_loss(disxz_out_p_g, target2)
 
     generator_cost = gen_cost_p_g_1 + gen_cost_p_g_2 + rz + ry
 
@@ -254,7 +263,7 @@ def train_generator(whitener, optimizer, BCE_loss, MSE_loss, cross_entropy_loss,
     generator_cost.backward()
     optimizer.step()
 
-    return generator_cost.cpu().numpy().mean()
+    return generator_cost.cpu().data.numpy().mean()
 
 
 def train_classifier(x_labelled, y_labelled, x_unlabelled, num_batches_u, eval_epoch,
@@ -490,7 +499,8 @@ def train_gan(discriminator1, discriminator2, generator, inferentor, classifier,
                                          generator=generator,
                                          classifier=classifier,
                                          sample_y=sample_y,
-                                         z_rand=z_rand)
+                                         z_rand=z_rand,
+                                         cuda=cuda)
 
 
             gan_loss = {
@@ -499,10 +509,7 @@ def train_gan(discriminator1, discriminator2, generator, inferentor, classifier,
                 'gen': gen_losses
             }
 
-            if i_l == ((x_labelled.shape[0] // batch_l) - 1):
-                p_l = rng.permutation(x_labelled.shape[0])
-                x_labelled = x_labelled[p_l]
-                y_labelled = y_labelled[p_l]
+            return gan_loss
 
 
 

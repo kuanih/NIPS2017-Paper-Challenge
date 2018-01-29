@@ -42,8 +42,8 @@ class ZCA(object):
         elif isinstance(x, torch.autograd.Variable):
             s = x.size()
             dims = len(x.size())
-            subs = Variable(torch.from_numpy(self.mean), requires_grad=False)
-            mult = Variable(self.ZCA_mat, requires_grad=False)
+            subs = Variable(torch.from_numpy(self.mean), requires_grad=True)
+            mult = Variable(self.ZCA_mat, requires_grad=True)
             if x.is_cuda:
                 subs, mult = subs.cuda(), mult.cuda()
 
