@@ -151,7 +151,6 @@ else:
 #########################################################################################################
 
 ### PRETRAIN CLASSIFIER ###
-'''
 logger.info('Start pretraining...')
 for epoch in range(1, 1+NUM_EPOCHS_PRE):
 
@@ -163,8 +162,6 @@ for epoch in range(1, 1+NUM_EPOCHS_PRE):
     accurracy = eval_classifier(num_batches_e, eval_x, eval_y, BATCH_SIZE_EVAL, whitener, classifier, CUDA)
 
     logger.info(str(epoch) + ':Pretrain error_rate: ' + str(1 - accurracy))
-'''
-
 
 
 ### GAN TRAINING ###
