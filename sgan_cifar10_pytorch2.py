@@ -21,6 +21,13 @@ with open('./log_config.yaml') as file:
 logger = logging.getLogger(__name__)
 logger.info('PyTorch version: ' + str(torch.__version__))
 
+# loss logger
+loss_logger = logging.getLogger('loss_logger')
+loss_logger.setLevel(logging.INFO)
+fh = logging.FileHandler('./losses.log')
+fh.setLevel(logging.INFO)
+loss_logger.addHandler(fh)
+
 # import SGAN utils
 from layers import rampup, rampdown
 from zca import ZCA
@@ -275,6 +282,8 @@ for epoch in range(1, 1+NUM_EPOCHS):
     line = "*Epoch=%d Time=%.2f LR=%.5f\n" % (epoch, t, lr) + "DisLosses: " + str(gan_losses['dis']) + "\nGenLosses: " + \
            str(gan_losses['gen']) + "\nInfLosses: " + str(gan_losses['inf']) + "\nClaLosses: " + str(cla_losses)
     logger.info(line)
+
+    loss_logger.info(line)
 
     # save checkpoints
     if epoch % EPOCH_SAVE_CHECKPOINTS == 0 or epoch == NUM_EPOCHS:
