@@ -113,6 +113,9 @@ def init_weights(model):
 
 
 class Gaussian_NoiseLayer(nn.Module):
+    '''
+    Adds Gaussian noise to input data
+    '''
     def __init__(self, std=0.15):
         super(Gaussian_NoiseLayer, self).__init__()
         self.std = std
@@ -145,6 +148,9 @@ class MeanOnlyBatchNorm(nn.Module):
 
 
 def rampup(epoch):
+    '''
+    calculate ramp-up value dependent on epoch
+    '''
     if epoch < 80:
         p = max(0.0, float(epoch)) / float(80)
         p = 1.0 - p
@@ -154,6 +160,9 @@ def rampup(epoch):
 
 
 def rampdown(epoch):
+    '''
+    calculate ramp-down value dependent on epoch
+    '''
     if epoch >= (300 - 50):
         ep = (epoch - (300 - 50)) * 0.5
         return math.exp(-(ep * ep) / 50)
