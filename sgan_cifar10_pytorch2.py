@@ -72,7 +72,13 @@ ANNEAL_FACTOR_CLA = 0.99
 
 # results and checkpoints
 path_out = "./results"
+if not os.path.exists(path_out):
+    os.makedirs(path_out)
+
 checkpoint_directory = "./checkpoints/"
+if not os.path.exists(checkpoint_directory):
+    os.makedirs(checkpoint_directory)
+
 classifier_result = checkpoint_directory + "classifier_pretrained.pth"
 EPOCH_SAVE_CHECKPOINTS = 25
 
