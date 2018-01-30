@@ -9,6 +9,7 @@ import torch.nn as nn
 import torch.optim as optim
 import numpy as np
 import time
+import os.path
 import utils
 
 # initialize logger
@@ -72,6 +73,7 @@ ANNEAL_FACTOR_CLA = 0.99
 # results and checkpoints
 path_out = "./results"
 checkpoint_directory = "./checkpoints/"
+classifier_result = checkpoint_directory + "classifier_pretrained.pth"
 EPOCH_SAVE_CHECKPOINTS = 25
 
 ### DATA ###
@@ -151,17 +153,23 @@ else:
 #########################################################################################################
 
 ### PRETRAIN CLASSIFIER ###
-logger.info('Start pretraining...')
-for epoch in range(1, 1+NUM_EPOCHS_PRE):
+if os.path.isfile(classifier_result):
+    logger.info('Load pretrained classifier from disk')
+    classifier = torch.load(classifier_result)
+else:
+    logger.info('Start pretraining...')
+    for epoch in range(1, 1+NUM_EPOCHS_PRE):
 
-    # pretrain classifier net
-    classifier = pretrain_classifier(x_labelled, x_unlabelled, y_labelled, eval_x, eval_y, num_batches_l,
-                                     BATCH_SIZE, num_batches_u, classifier, whitener, losses, rng, CUDA)
+        # pretrain classifier net
+        classifier = pretrain_classifier(x_labelled, x_unlabelled, y_labelled, eval_x, eval_y, num_batches_l,
+                                         BATCH_SIZE, num_batches_u, classifier, whitener, losses, rng, CUDA)
 
-    # evaluate
-    accurracy = eval_classifier(num_batches_e, eval_x, eval_y, BATCH_SIZE_EVAL, whitener, classifier, CUDA)
+        # evaluate
+        accurracy = eval_classifier(num_batches_e, eval_x, eval_y, BATCH_SIZE_EVAL, whitener, classifier, CUDA)
 
-    logger.info(str(epoch) + ':Pretrain error_rate: ' + str(1 - accurracy))
+        logger.info(str(epoch) + ':Pretrain error_rate: ' + str(1 - accurracy))
+
+        torch.save(classifier, classifier_result)
 
 
 ### GAN TRAINING ###
