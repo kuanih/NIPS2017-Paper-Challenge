@@ -1,3 +1,7 @@
+'''
+custom network layers and dependent functions
+'''
+
 import torch
 import torch.nn as nn
 from torch.autograd import Variable
@@ -6,51 +10,68 @@ import logging
 
 
 def conv_concat(x, y, num_cls):
+    '''concatenates output from a convolutional layer with a target vector
+
+    Args:
+        x(torch.autograd.Variable): output from convolutional layer
+        y(torch.autograd.Variable): multiclass target vector or matrix
+        num_cls(int): number of target classes
+
+    Returns: concatenated tensor variable
+
+    '''
     dim_y = len(y.size())
     bs = y.size(0)
     y = y.long()
 
-    if dim_y == 1:
+    if dim_y == 1:  # in case of vector: 1-hot-encode whole batch
 
         label = Variable(torch.zeros((bs, num_cls)))  # zero tensor
         if y.is_cuda:
             label = label.cuda()
         y = label.scatter_(1, y.unsqueeze(1), 1)  # set label to 1 at the indices specified by y --> 1-hot-encoding
-        dim_y = len(y.size())
+        dim_y = len(y.size())   # update dimension
 
-    if dim_y == 2:
-        # y = y.dimshuffle(0, 1, 'x', 'x')
+    if dim_y == 2:  # in case of matrix: increase dimension
         y = y.unsqueeze(2).unsqueeze(3)
-        dim_y = len(y.size())
+        dim_y = len(y.size())  # update dimension
 
     assert dim_y == 4, 'Dimension of y != 4'
-    #typ = x.data.type()
-    #y = y.type(typ)
 
-    # T.concatenate([x, y*T.ones((x.shape[0], y.shape[1], x.shape[2], x.shape[3]))], axis=1)
+    # reformat target
     factor = Variable(torch.ones((x.size(0), y.size(1), x.size(2), x.size(3))))
     if x.is_cuda:
         factor = factor.cuda()
     y = y * factor
-    #y = Variable(y)
 
+    # concatenate and return
     return torch.cat([x, y], dim=1)
 
 
 def mlp_concat(x, y, num_cls):
+    '''concatenates output from a linear (MLP) layer with a target vector
+
+    Args:
+        x(torch.autograd.Variable): output from linear layer
+        y(torch.autograd.Variable): multiclass target
+        num_cls(int): number of target classes
+
+    Returns: concatenated tensor variable
+
+    '''
     dim_y = len(y.size())
     bs = y.size(0)
     y = y.long()
 
-    if dim_y == 1:
+    if dim_y == 1:  # in case of vector: 1-hot-encode whole batch
         label = Variable(torch.zeros((bs, num_cls)))  # zero tensor
         if y.is_cuda:
             label = label.cuda()
-        # y = label.scatter_(1, y.data, 1)
         y = label.scatter_(1, y.unsqueeze(1), 1)  # set label to 1 at the indices specified by y --> 1-hot-encoding
-        dim_y = len(y.size())
+        dim_y = len(y.size())  # update dimension
 
     assert dim_y == 2, 'Dimension of y != 2'
+
     # type cast for concatination
     typ = x.data.type()
     y = y.type(typ)
@@ -62,7 +83,7 @@ def init_weights(model):
     '''initializes the weights of specific NN layers by normal initialization
 
     Args:
-        model (torch.nn.Module): neural net model
+        model (torch.nn.Module): neural net model layers
 
     '''
     logger = logging.getLogger(__name__)

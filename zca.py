@@ -1,3 +1,7 @@
+'''
+ZCA whitening object for feature de-correlation
+'''
+
 import torch
 from torch.autograd import Variable
 import numpy as np
@@ -11,26 +15,46 @@ class ZCA(object):
             self.fit(x)
 
     def fit(self, x):
-        if isinstance(x, np.ndarray):
-            s = x.shape
-            x = x.copy().reshape((s[0], np.prod(s[1:])))
-            m = np.mean(x, axis=0)
-            x -= m
-            sigma = np.dot(x.T, x) / x.shape[0]
+        '''create object ZCA matrix from input data
+
+        Args:
+            x(numpy.ndarray): input data
+
+        '''
+        if isinstance(x, np.ndarray):   # check data type
+
+            s = x.shape  # dimensions of s
+            x = x.copy().reshape((s[0], np.prod(s[1:])))    # copy data
+            m = np.mean(x, axis=0)  # calculate mean
+            x -= m  # subtract mean
+            sigma = np.dot(x.T, x) / x.shape[0]  # co-variance matrix
+            # singular value decomposition (SVD):
+            # Factorizes a matrix into two unitary matrices U and V, and a 1-D array S of singular values
             U, S, V = linalg.svd(sigma)
+            # calculate regularized principal components
             tmp = np.dot(U, np.diag(1. / np.sqrt(S + self.regularization)))
-            tmp2 = np.dot(U, np.diag(np.sqrt(S + self.regularization)))
+            # compute final ZCA whitening matrix and convert to pytorch tensor
             self.ZCA_mat = torch.from_numpy(np.dot(tmp, U.T))
-            self.inv_ZCA_mat = torch.from_numpy(np.dot(tmp2, U.T))
             self.mean = m
+
         else:
             raise NotImplementedError("Init only implemented for np arrays")
 
     def apply(self, x):
+        '''applies ZCA whitening to the input data
+
+        Args:
+            x: input data to be whitened, three types are supported:
+                numpy.ndarray, torch.Tensor and torch.autograd.Variable
+
+        Returns: transformed data of same type
+
+        '''
 
         if isinstance(x, np.ndarray):
             s = x.shape
             return np.dot(x.reshape((s[0], np.prod(s[1:]))) - self.mean, self.ZCA_mat.numpy()).reshape(s)
+
         elif isinstance(x, torch.Tensor):
             s = x.size()
             dims = len(x.size())
@@ -39,6 +63,7 @@ class ZCA(object):
             else:
                 out = torch.mm(x.view(s[0], -1) - torch.from_numpy(self.mean).unsqueeze(0), self.ZCA_mat).view(s)
             return out
+
         elif isinstance(x, torch.autograd.Variable):
             s = x.size()
             dims = len(x.size())
@@ -52,5 +77,6 @@ class ZCA(object):
             else:
                 out = torch.mm(x.view(s[0], -1) - subs.unsqueeze(0), mult).view(s)
             return out
+
         else:
-            raise NotImplementedError("Whitening only implemented for np arrays or torch.Tensors")
+            raise NotImplementedError("Whitening only implemented for ndarrays, Tensors or Variables")

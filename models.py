@@ -125,8 +125,8 @@ class ClassifierNet(nn.Module):
             # log network structure
             self.logger.debug(self)
 
-    def forward(self, x, cuda):
-        x = self.gaussian(x, cuda=cuda)
+    def forward(self, x, cuda, deterministic=False):
+        x = self.gaussian(x, cuda=cuda, deterministic=deterministic)
         x = self.convWN1(self.conv_relu(self.conv1a(x)))
         x = self.convWN1(self.conv_relu(self.conv1b(x)))
         x = self.convWN1(self.conv_relu(self.conv1c(x)))

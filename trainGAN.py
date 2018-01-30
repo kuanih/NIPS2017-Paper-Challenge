@@ -388,7 +388,7 @@ def eval_classifier(num_batches_e, eval_x, eval_y, batch_size, whitener, classif
         if cuda:
             x_eval_zca = x_eval_zca.cuda()
 
-        cla_out_y_eval = classifier(x_eval_zca, cuda=cuda)
+        cla_out_y_eval = classifier(x_eval_zca, cuda=cuda, deterministic=True)
 
         pred = cla_out_y_eval.cpu().data.numpy()
         pred = np.argmax(pred, axis=1)
