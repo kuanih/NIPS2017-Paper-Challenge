@@ -87,6 +87,7 @@ def pretrain_classifier(x_labelled, x_unlabelled, y_labelled, eval_x, eval_y, nu
         pretrain_cost = cla_cost_l + cla_cost_u
 
         # run optimization and update weights
+        cla_optimizer.zero_grad()
         cla_optimizer = optim.Adam(classifier.parameters(), betas=(0.9, 0.999), lr=3e-3)
         pretrain_cost.backward()
         cla_optimizer.step()
