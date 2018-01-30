@@ -304,7 +304,7 @@ def train_generator(whitener, optimizer, BCE_loss, MSE_loss, cross_entropy_loss,
 def train_classifier(x_labelled, y_labelled, x_unlabelled, num_batches_u, eval_epoch,
                      size_l, size_u, size_g, n_z, whitener, classifier, p_u,
                      unsup_weight, losses, generator, w_g, cla_lr, rng, b1_c, cuda):
-    '''
+    '''does batch training for the classifier
 
     Args:
         x_labelled: labelled input data
