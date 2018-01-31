@@ -52,4 +52,4 @@ def load(data_dir, subset='train'):
 
 def save_checkpoint(model, model_name, output_directory, epoch):
     model_out_path = output_directory + model_name + "_epoch_{}.pth".format(epoch)
-    torch.save(model, model_out_path)
+    torch.save(model.state_dict(), model_out_path)

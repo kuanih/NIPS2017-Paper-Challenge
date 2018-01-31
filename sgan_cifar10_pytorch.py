@@ -161,7 +161,7 @@ else:
 ### PRETRAIN CLASSIFIER ###
 if os.path.isfile(classifier_result):
     logger.info('Load pretrained classifier from disk')
-    classifier = torch.load(classifier_result)
+    classifier.load_state_dict(torch.load(classifier_result))
 else:
     logger.info('Start pretraining...')
     for epoch in range(1, 1+NUM_EPOCHS_PRE):
@@ -175,7 +175,7 @@ else:
 
         logger.info(str(epoch) + ':Pretrain error_rate: ' + str(1 - accurracy))
 
-        torch.save(classifier, classifier_result)
+        torch.save(classifier.state_dict(), classifier_result)
 
 
 ### GAN TRAINING ###
